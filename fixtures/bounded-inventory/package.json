@@ -1,0 +1,5 @@
+{
+  "name": "bounded-inventory-fixture",
+  "private": true,
+  "description": "Dependency-free TypeScript fixture for Arena Phase 1."
+}

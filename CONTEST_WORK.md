@@ -16,6 +16,6 @@ Phase 0 is complete when the scaffold builds, the built-in test passes, the requ
 
 ## Phase 1 handoff
 
-The next bounded step is the multi-candidate feasibility spike: create one deterministic fixture, define the minimal candidate-adapter interface, and prove that at least four configured candidates—including at least three Codex model or attention variants—can execute the same contract in separate worktrees with raw output, process status, timing, and final diffs collected.
+The next bounded step is the locked six-candidate feasibility spike: create one deterministic fixture, define the minimal candidate-adapter interface, and prove that Luna Low, Medium, and High through both Codex and OpenCode can execute the same contract in separate worktrees with raw output, process status, timing, and final diffs collected. Adding a seventh candidate must be trial configuration only.
 
 Do not begin judging, telemetry normalization, HTML reports, routing, plugins, or AgentWorkbench integration during that spike.

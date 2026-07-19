@@ -1015,11 +1015,11 @@ The repository builds, tests, and contains the locked product scope.
 
 ---
 
-## Phase 1: Multi-candidate adapter feasibility spike
+## Phase 1: Native six-candidate adapter feasibility spike
 
 ### Objective
 
-Prove that the runner can execute at least four live candidate configurations against the same fixture task, including multiple Codex model or attention configurations through one reusable adapter, and produce collectable output for every candidate.
+Prove that the runner can execute the locked six live candidate configurations against the same fixture task: Luna Low, Medium, and High through Codex, plus Luna Low, Medium, and High through OpenCode. Candidate enumeration remains generic and supports any two-or-more candidates.
 
 ### Required work
 
@@ -1038,7 +1038,7 @@ interface CandidateAdapter {
    * `CodexExecAdapter`;
    * `OpenCodeRunAdapter`.
 4. Make candidate enumeration independent of adapter enumeration.
-5. Configure and execute at least four candidates, including at least three Codex model or attention variants.
+5. Configure and execute all six locked candidates through generic enumeration.
 6. Capture raw JSON events for each candidate.
 7. Capture process status and timing for each candidate.
 8. Produce a final Git diff from each worktree.
@@ -1049,14 +1049,13 @@ interface CandidateAdapter {
 The spike passes only when:
 
 * both native adapters start where used by the configured trial;
-* at least four candidate configurations execute;
-* at least three candidates differ by Codex model, attention limit, or both;
+* all six configured candidate configurations are attempted;
 * every candidate receives the same task contract;
 * every candidate terminates or times out cleanly;
 * every candidate produces raw logs;
 * every candidate worktree remains inspectable;
 * every final diff can be collected;
-* adding a fifth candidate requires only trial-file configuration, not runner changes.
+* adding a seventh candidate requires only trial-file configuration, not runner changes.
 
 ### Kill decision
 
@@ -1066,7 +1065,7 @@ If live multi-candidate execution does not work reliably, switch immediately to 
 arena compare <trial.yml> <candidate-export-directory...>
 ```
 
-The contingency product imports at least four real native-session exports, including multiple Codex configurations, normalizes them, validates the resulting worktrees, and produces the same multi-candidate evaluation report. Import mode must not collapse the product back to a pairwise comparison.
+The contingency product imports the locked six real native-session exports, including both harnesses and all three attention settings, normalizes them, validates the resulting worktrees, and produces the same multi-candidate evaluation report. Import mode must not collapse the product back to a pairwise comparison.
 
 Do not spend the entire remaining budget debugging native process control.
 
@@ -1309,7 +1308,7 @@ Use the remaining weekly allowance only for:
 2. fixture;
 3. Codex adapter;
 4. OpenCode adapter;
-5. one successful four-candidate spike, including multiple Codex model or attention configurations.
+5. one successful six-candidate spike across the locked Codex and OpenCode configurations.
 
 Do not spend a banked reset merely to continue architecture discussion.
 
@@ -1318,7 +1317,7 @@ Do not spend a banked reset merely to continue architecture discussion.
 Use the first banked reset only after:
 
 * both adapters have executed where required by the selected trial;
-* at least four candidate configurations have produced artifacts;
+* all six configured candidate configurations have produced artifacts;
 * the implementation path is proven;
 * no major scope decision remains open.
 
@@ -1409,7 +1408,7 @@ Target approximately 2 minutes 40 seconds.
 Show:
 
 * one task contract;
-* four to six candidate configurations, visibly including multiple Codex model or attention settings;
+* the locked six candidate configurations, visibly including both harnesses and all three attention settings;
 * same baseline commit;
 * same validation rules.
 
@@ -1430,7 +1429,7 @@ Show the hard-gate matrix.
 
 Example:
 
-* four candidates passed tests;
+* several candidates passed tests;
 * Candidate B was fastest but changed a prohibited file;
 * Candidate C remained within scope and achieved the strongest semantic result;
 * Candidate A used fewer reported tokens;
@@ -1477,7 +1476,7 @@ Must complete:
 * adapter interface;
 * Codex adapter;
 * OpenCode adapter;
-* successful or clearly salvageable four-candidate spike with multiple Codex model or attention configurations.
+* successful or clearly salvageable six-candidate spike across both locked harnesses and attention settings.
 
 Decision at the end of this stage:
 
@@ -1603,4 +1602,4 @@ The contest project is complete when all of the following are true:
 
 The first Codex task should be:
 
-> Create a new TypeScript repository for AgentWorkbench Arena. Implement only Phase 0 and Phase 1 of the supplied roadmap. Build the fixture, trial schema, candidate-adapter interface, Codex Exec adapter, and OpenCode Run adapter. Candidate enumeration must be independent of adapter enumeration. Prove that the same task contract can be executed in separate worktrees by at least four live candidate configurations, including at least three Codex model or attention variants, and that raw events, exit status, timing, and final diffs can be collected for every candidate. Adding another candidate must require only trial-file configuration. Do not implement the GPT judge, HTML report, routing recommendation, Reasonix, a dashboard, or AgentWorkbench v1 integration. Maintain `IMPLEMENTATION_STATE.md`, commit coherent milestones, and stop with a feasibility report once the four-candidate spike has either succeeded or produced exact blocking evidence.
+> Create a new TypeScript repository for AgentWorkbench Arena. Implement only Phase 0 and Phase 1 of the supplied roadmap. Build the fixture, trial schema, candidate-adapter interface, Codex Exec adapter, and OpenCode Run adapter. Candidate enumeration must be independent of adapter enumeration. Prove that the same task contract can be executed in separate worktrees by the locked six live candidate configurations: Luna Low, Medium, and High through both Codex and OpenCode. Raw events, exit status, timing, and final diffs must be collected for every candidate. Adding a seventh candidate must require only trial-file configuration. Do not implement the GPT judge, HTML report, routing recommendation, Reasonix, a dashboard, or AgentWorkbench v1 integration. Maintain `IMPLEMENTATION_STATE.md`, commit coherent milestones, and stop with a feasibility report once the six-candidate spike has either succeeded or produced exact blocking evidence.

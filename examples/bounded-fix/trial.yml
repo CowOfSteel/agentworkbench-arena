@@ -1,0 +1,85 @@
+id: bounded-inventory-luna
+repository: .
+baseline_ref: phase1-fixture-baseline
+task_contract: |
+  Fix the bounded inventory total defect in fixtures/bounded-inventory. Keep the public
+  inventoryTotal(lines) signature unchanged. It must calculate the sum of quantity times
+  fractional unit price and round only the final result to cents. Do not add dependencies.
+allowed_paths:
+  - fixtures/bounded-inventory/src
+  - fixtures/bounded-inventory/tests
+forbidden_paths:
+  - package.json
+  - package-lock.json
+  - src
+  - tests
+validation_commands:
+  - [npm, run, fixture:typecheck]
+  - [npm, run, fixture:test]
+timeout_ms: 180000
+retry_policy:
+  max_launch_transport_retries: 1
+manual_intervention: forbidden
+provenance:
+  build_tools:
+    rtk:
+      role: arena-build-tooling
+  ambient_tools:
+    codex_user_configuration: detected-and-sanitized-where-supported
+    opencode_user_configuration: detected; --pure requested; activation not assumed
+  future_candidate_enabled_tools: []
+candidates:
+  - id: codex-luna-low
+    adapter: codex-exec
+    harness: codex
+    model: gpt-5.6-luna
+    attention: low
+    permission_policy: workspace-write
+    adapter_options:
+      config_overrides: { model_reasoning_effort: low }
+    tool_provenance: { explicitly_enabled: [] }
+  - id: codex-luna-medium
+    adapter: codex-exec
+    harness: codex
+    model: gpt-5.6-luna
+    attention: medium
+    permission_policy: workspace-write
+    adapter_options:
+      config_overrides: { model_reasoning_effort: medium }
+    tool_provenance: { explicitly_enabled: [] }
+  - id: codex-luna-high
+    adapter: codex-exec
+    harness: codex
+    model: gpt-5.6-luna
+    attention: high
+    permission_policy: workspace-write
+    adapter_options:
+      config_overrides: { model_reasoning_effort: high }
+    tool_provenance: { explicitly_enabled: [] }
+  - id: opencode-luna-low
+    adapter: opencode-run
+    harness: opencode
+    provider: openai
+    model: gpt-5.6-luna
+    attention: low
+    agent: build
+    permission_policy: configured-build-agent
+    tool_provenance: { explicitly_enabled: [] }
+  - id: opencode-luna-medium
+    adapter: opencode-run
+    harness: opencode
+    provider: openai
+    model: gpt-5.6-luna
+    attention: medium
+    agent: build
+    permission_policy: configured-build-agent
+    tool_provenance: { explicitly_enabled: [] }
+  - id: opencode-luna-high
+    adapter: opencode-run
+    harness: opencode
+    provider: openai
+    model: gpt-5.6-luna
+    attention: high
+    agent: build
+    permission_policy: configured-build-agent
+    tool_provenance: { explicitly_enabled: [] }
