@@ -48,7 +48,7 @@ const strings = (value: unknown, label: string): string[] => {
 export function validateTrial(value: unknown): Trial {
   const raw = object(value, "trial");
   const commands = raw.validation_commands;
-  if (!Array.isArray(commands) || commands.some((command) => !Array.isArray(command) || command.some((part) => typeof part !== "string") || command.length === 0)) {
+  if (!Array.isArray(commands) || commands.length === 0 || commands.some((command) => !Array.isArray(command) || command.some((part) => typeof part !== "string") || command.length === 0)) {
     throw new Error("validation_commands must be a non-empty list of argument lists");
   }
   const retry = object(raw.retry_policy, "retry_policy");

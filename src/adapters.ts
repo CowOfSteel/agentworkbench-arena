@@ -104,7 +104,8 @@ export class OpenCodeRunAdapter implements CandidateAdapter {
     const execution = await run(await openCodeCommand(), args, request.worktree, request.timeoutMs, join(request.artifactDirectory, "stdout.log"), join(request.artifactDirectory, "stderr.log"));
     const raw = await readFile(join(request.artifactDirectory, "stdout.log"), "utf8").catch(() => "");
     const final = raw.split(/\r?\n/).flatMap((line) => { try { return [JSON.parse(line)]; } catch { return []; } })
-      .filter((event) => event.type === "text" && typeof event.part?.text === "string").map((event) => event.part.text).at(-1);
+      .filter((event) => event.type === "text" && event.part?.metadata?.openai?.phase === "final_answer" && typeof event.part?.text === "string")
+      .map((event) => event.part.text).at(-1);
     if (final) { await appendFile(join(request.artifactDirectory, "final-response.txt"), final); execution.finalResponse = final; }
     return execution;
   }

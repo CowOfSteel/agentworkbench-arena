@@ -2,46 +2,42 @@
 
 ## Current phase
 
-Phase 0 — scope lock and contest setup.
+Phase 1 — native six-candidate feasibility spike completed with `IMPORT_COMPARISON_FALLBACK`.
 
 ## Completed work
 
-- Preserved the authoritative roadmap at `docs/COMPETITION-SPRINT-ROADMAP.md`.
-- Added the minimal Node.js and TypeScript CLI scaffold.
-- Added one built-in CLI smoke test.
-- Added scope, process, decisions, license, and state documentation.
-- Explicitly excluded Phase 1 and later functionality.
+- Preserved the authoritative roadmap and locked Phase 1 to the six-candidate trial.
+- Resolved the legacy add/add conflict with the project-specific versions.
+- Added the dependency-free bounded inventory fixture and immutable `phase1-fixture-baseline` tag.
+- Added YAML trial validation, generic two-or-more candidate enumeration, isolated sequential Git worktrees, raw evidence, final diffs, timeout handling, and one launch/transport retry policy.
+- Added native Codex Exec and OpenCode Run adapters plus `arena doctor` and `arena run`.
+- Attempted every configured candidate and preserved inspectable evidence for each; the exact outcome is in `docs/PHASE1-FEASIBILITY-REPORT.md`.
 
 ## Acceptance criteria status
 
-- [x] Repository scaffold exists.
-- [x] Locked product scope is documented.
-- [x] Candidate count is documented as dynamic and two-or-more.
-- [x] Six first-live-trial configurations are documented.
-- [x] Plugin/tool provenance and raw-evidence authority are documented.
-- [x] Arena separation from AgentWorkbench v1 is documented.
-- [x] Build and test commands are defined.
-- [x] Build and test commands verified in the implementation run.
-- [x] Git commit completed, if local Git authoring permits it.
+- [x] Fixture, trial schema, generic adapter contract, and two native adapters implemented.
+- [x] Candidate count is two-or-more with no product maximum; a seventh candidate is test-proven configuration only.
+- [x] All six locked candidates attempted in dynamically generated isolated worktrees.
+- [x] Raw events, logs, final diffs, timings, exit state, validation results, and classifications preserved.
+- [x] Native doctor passed: Codex CLI `0.144.0`; OpenCode CLI `1.18.3`.
+- [x] `IMPORT_COMPARISON_FALLBACK` declared with exact evidence; fallback mode itself not implemented.
 
 ## Commands verified
 
-- `rtk npm install` — passed; installed 3 packages and found 0 vulnerabilities.
+- `rtk npm install` — passed; YAML parser installed with no vulnerabilities.
 - `rtk npm run typecheck` — passed.
 - `rtk npm run build` — passed.
-- `rtk npm test` — passed; 1 test passed.
-- `rtk npm start -- --help` — passed; printed Phase 0 help and Phase 1 boundary.
-- `rtk git diff --check` — passed before commit.
+- `rtk npm test` — passed; CLI, schema, native argument shape, generic worktree evidence, timeout classification, and candidate-seven tests passed.
+- `rtk npm run fixture:typecheck` — passed.
+- `rtk npm run fixture:test` — passed.
+- `rtk npm start -- doctor examples/bounded-fix/trial.yml` — both adapters passed.
+- `rtk npm start -- run examples/bounded-fix/trial.yml` — all six candidates attempted; evidence preserved.
 
 ## Current blockers
 
-None for Phase 0. Live native harness availability is intentionally unverified until Phase 1.
-
-## Unresolved risks
-
-- Phase 1 may find that live Codex or OpenCode process execution is unavailable or unreliable in the target environment.
-- The six-configuration live trial depends on locally available client models and configuration names.
+- Codex writes were rejected as read-only by noninteractive approval settings despite `workspace-write`.
+- OpenCode Low, Medium, and High each reached the shared 180-second timeout; High edited the allowed source file but did not terminate.
 
 ## Next bounded step
 
-Phase 1 multi-candidate feasibility spike: build the small fixture, define the candidate-adapter interface, and prove four-candidate execution with at least three Codex variants, separate worktrees, and preserved raw evidence. Stop there if the feasibility gate fails.
+Do not begin Phase 2. First verify a non-dangerous Codex write-permission configuration and an OpenCode noninteractive completion path with bounded diagnostics, then run one fresh six-candidate trial or separately authorize import fallback implementation.

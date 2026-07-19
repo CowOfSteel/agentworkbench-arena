@@ -16,6 +16,6 @@ Phase 0 is complete when the scaffold builds, the built-in test passes, the requ
 
 ## Phase 1 handoff
 
-The next bounded step is the locked six-candidate feasibility spike: create one deterministic fixture, define the minimal candidate-adapter interface, and prove that Luna Low, Medium, and High through both Codex and OpenCode can execute the same contract in separate worktrees with raw output, process status, timing, and final diffs collected. Adding a seventh candidate must be trial configuration only.
+Phase 1 attempted the locked six-candidate feasibility spike and preserved classified evidence for each worktree. The run declared `IMPORT_COMPARISON_FALLBACK`: Codex executions were blocked by noninteractive write permission, while all OpenCode executions timed out at the common 180-second limit. Do not rerun candidates while debugging; inspect the recorded evidence first.
 
 Do not begin judging, telemetry normalization, HTML reports, routing, plugins, or AgentWorkbench integration during that spike.
