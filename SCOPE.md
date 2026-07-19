@@ -23,6 +23,18 @@ Arena compares complete coding-agent configurations on the user’s own reposito
 - AgentWorkbench v1 integration.
 - Web frameworks, databases, React, Electron, Docker, or generalized plugin infrastructure.
 
+## Phase 1 in scope
+
+- One bounded TypeScript fixture and one YAML trial.
+- Candidate-array validation for two or more entries, with no product maximum.
+- Native Codex Exec and OpenCode Run adapters.
+- Sequential isolated Git worktrees, raw native evidence, final diffs, and classified process outcomes.
+- Provenance-only recording for build tooling, ambient tools, and future candidate-enabled tools.
+
+## Phase 1 out of scope
+
+- Normalized telemetry, complete deterministic hard gates, adjudication, identity masking, reports, recommendations, import fallback, plugin orchestration, controlled RTK/Ponytail comparisons, parallelism, additional adapters, routing, and AgentWorkbench v1 integration.
+
 ## Locked trial shape
 
 Trials support two or more candidates. Candidate count is configuration data, not a runner or schema constant. An optional operational safety limit may be introduced later, but it will not be a product-level maximum.

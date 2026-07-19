@@ -2,7 +2,7 @@
 
 AgentWorkbench Arena is a local calibration tool for comparing complete coding-agent configurations on a user-owned repository. It is a separate contest-period prototype of a future AgentWorkbench configuration-calibration system.
 
-The project is currently in Phase 0: scope lock and contest setup. The CLI scaffold builds and exposes help, but candidate execution has deliberately not started.
+The project is currently in the Phase 1 native feasibility spike. It runs the locked six candidate configurations sequentially in isolated Git worktrees and preserves raw evidence for inspection.
 
 ## Quick start
 
@@ -10,10 +10,11 @@ The project is currently in Phase 0: scope lock and contest setup. The CLI scaff
 npm install
 npm run build
 npm test
-npm start -- --help
+npm start -- doctor examples/bounded-fix/trial.yml
+npm start -- run examples/bounded-fix/trial.yml
 ```
 
-The project uses TypeScript, Node.js, native Git/process capabilities, and Node’s built-in test runner. It has no runtime dependencies, web framework, database, dashboard, or plugin framework.
+The project uses TypeScript, Node.js, native Git/process capabilities, Node’s built-in test runner, and one YAML parser. It has no web framework, database, dashboard, or plugin framework.
 
 ## Locked product direction
 
@@ -24,11 +25,11 @@ The project uses TypeScript, Node.js, native Git/process capabilities, and Node�
 - Raw evidence remains authoritative. The product compares complete configurations and does not make unsupported single-variable causal claims.
 - Plugins and tools may have reserved schema concepts later, but Phase 0 does not orchestrate, install, execute, or emit plugin-specific telemetry.
 
-## Phase boundaries
+## Phase 1 boundaries
 
-Phase 0 contains only the repository scaffold, documentation, and verification. It does not contain adapters, schemas, worktrees, trial execution, telemetry normalization, GPT-5.6 adjudication, reports, routing recommendations, fixtures, plugin execution, or AgentWorkbench integration.
+Phase 1 contains the fixture, YAML trial schema, Codex and OpenCode native adapters, sequential worktree runner, and raw evidence preservation. Candidate count is configuration data: the first trial has six candidates, while adding a seventh changes only the trial file.
 
-The exact Phase 1 starting point is the fixture, candidate-adapter interface, and multi-candidate feasibility spike. It must prove the execution path before later evaluation features are added.
+It does not contain normalized telemetry, deterministic hard-gate ranking, GPT-5.6 adjudication, identity masking, HTML reporting, recommendations, import fallback, plugin orchestration, controlled tool comparisons, parallel execution, additional adapters, automatic routing, or AgentWorkbench v1 integration.
 
 See [`docs/COMPETITION-SPRINT-ROADMAP.md`](docs/COMPETITION-SPRINT-ROADMAP.md) for the authoritative roadmap, [`SCOPE.md`](SCOPE.md) for boundaries, [`DECISIONS.md`](DECISIONS.md) for locked decisions, and [`IMPLEMENTATION_STATE.md`](IMPLEMENTATION_STATE.md) for current status.
 
