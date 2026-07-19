@@ -1,0 +1,23 @@
+{
+  "name": "agentworkbench-arena",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Phase 0 scaffold for AgentWorkbench Arena.",
+  "type": "commonjs",
+  "bin": {
+    "arena": "dist/src/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test dist/tests/cli.test.js",
+    "start": "node dist/src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.2"
+  }
+}
