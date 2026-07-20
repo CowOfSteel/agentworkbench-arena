@@ -17,6 +17,8 @@ validation_commands:
   - [npm, run, fixture:typecheck]
   - [npm, run, fixture:test]
 timeout_ms: 180000
+validation_timeout_ms: 180000
+dependency_policy: no_changes
 retry_policy:
   max_launch_transport_retries: 1
 manual_intervention: forbidden
