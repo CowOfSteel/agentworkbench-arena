@@ -31,9 +31,8 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<numb
     const tail = args.slice(2); const dryRun = tail.includes("--dry-run"); const reasoningIndex = tail.indexOf("--reasoning");
     if (tail.some((item, index) => item !== "--dry-run" && index !== reasoningIndex && index !== reasoningIndex + 1) || (reasoningIndex >= 0 && !["low", "high"].includes(tail[reasoningIndex + 1] ?? ""))) throw new Error("usage: arena adjudicate <run-directory> [--dry-run] [--reasoning low|high]");
     const config = { ...defaultJudgeConfig, reasoning_effort: reasoningIndex >= 0 ? tail[reasoningIndex + 1] as "low" | "high" : defaultJudgeConfig.reasoning_effort };
-    const judge = new CodexJudgeAdapter();
-    const result = dryRun ? { ...(await adjudicationDryRun(args[1], config)), doctor: await judge.doctor(config) } : await adjudicateRun(args[1], judge, config);
-    console.log(JSON.stringify(result, null, 2)); return dryRun && !(result as { doctor?: { ok: boolean } }).doctor?.ok ? 1 : 0;
+    const result = dryRun ? await adjudicationDryRun(args[1], config) : await adjudicateRun(args[1], new CodexJudgeAdapter(), config);
+    console.log(JSON.stringify(result, null, 2)); return 0;
   }
 
   if ((args[0] === "doctor" || args[0] === "run" || args[0] === "diagnose" || args[0] === "diagnostic") && args[1]) {
