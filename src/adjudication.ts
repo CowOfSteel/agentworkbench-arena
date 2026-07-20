@@ -19,7 +19,8 @@ export const defaultPacketLimits: PacketLimits = { validation_output_chars: 1_00
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 interface CandidatePacket { id: string; label: string; artifactDirectory: string; telemetry: Record<string, unknown>; validation: Record<string, unknown>; provenance: Record<string, unknown>; diff: string; }
-interface LoadedRun { directory: string; manifest: Record<string, unknown>; snapshot: Record<string, unknown>; taskContract: Record<string, unknown>; candidates: CandidatePacket[]; forbidden: string[]; }
+interface IdentityInventory { substring: string[]; token: string[]; }
+interface LoadedRun { directory: string; manifest: Record<string, unknown>; snapshot: Record<string, unknown>; taskContract: Record<string, unknown>; candidates: CandidatePacket[]; forbidden: IdentityInventory; }
 const criteria = ["acceptance_coverage", "maintainability", "architecture_fit", "regression_risk", "unnecessary_complexity", "evidence_quality"] as const;
 const ordinal = new Set(["strong", "adequate", "weak", "insufficient_evidence"]);
 const maxText = 2_000, maxList = 16, maxResponse = 16_000;
@@ -39,22 +40,29 @@ async function atomicWrite(path: string, value: unknown): Promise<void> { const 
 async function readJson(path: string): Promise<Record<string, unknown>> { return object(JSON.parse(await readFile(path, "utf8")), path); }
 function strings(value: unknown, target: Set<string>): void { if (typeof value === "string" && value) target.add(value); else if (Array.isArray(value)) value.forEach((item) => strings(item, target)); else if (value && typeof value === "object") Object.values(value).forEach((item) => strings(item, target)); }
 function failPolicy(): never { throw new Error("judge packet violates identity or path policy"); }
-function ensureSafe(value: unknown, forbidden: string[], runDirectory = ""): void {
+const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function inventory(value: IdentityInventory | string[]): IdentityInventory { return Array.isArray(value) ? { substring: value, token: [] } : value; }
+function ensureSafe(value: unknown, forbidden: IdentityInventory | string[], runDirectory = ""): void {
   if (typeof value === "string") {
-    const lower = value.toLocaleLowerCase();
-    if (pathPattern.test(value) || (runDirectory && lower.includes(runDirectory.toLocaleLowerCase())) || forbidden.some((item) => item && lower.includes(item.toLocaleLowerCase()))) failPolicy();
+    const lower = value.toLocaleLowerCase(), identities = inventory(forbidden), tokenValue = value.replaceAll("<path:redacted>", "");
+    if (pathPattern.test(value) || (runDirectory && lower.includes(runDirectory.toLocaleLowerCase())) || identities.substring.some((item) => item && lower.includes(item.toLocaleLowerCase())) || identities.token.some((item) => item && new RegExp(`\\b${escapeRegex(item)}\\b`, "i").test(tokenValue))) failPolicy();
   } else if (Array.isArray(value)) value.forEach((item) => ensureSafe(item, forbidden, runDirectory));
   else if (value && typeof value === "object") Object.values(value).forEach((item) => ensureSafe(item, forbidden, runDirectory));
 }
-function safeText(value: string, forbidden: string[], runDirectory: string): string { const sanitized = sanitizePaths(value); ensureSafe(sanitized, forbidden, runDirectory); return sanitized; }
+function safeText(value: string, forbidden: IdentityInventory | string[], runDirectory: string): string { const sanitized = sanitizePaths(value); ensureSafe(sanitized, forbidden, runDirectory); return sanitized; }
 
-function forbiddenInventory(candidate: CandidatePacket, manifestCandidate: Record<string, unknown>): string[] {
-  const values = new Set<string>(); const telemetry = object(candidate.telemetry.provenance, "telemetry provenance");
-  for (const source of [candidate.id, candidate.artifactDirectory, manifestCandidate.configuration_hash, telemetry.adapter, telemetry.harness, telemetry.provider, telemetry.model, telemetry.attention, telemetry.agent, telemetry.profile, telemetry.configuration_hash]) strings(source, values);
+function forbiddenInventory(candidate: CandidatePacket, manifestCandidate: Record<string, unknown>): IdentityInventory {
+  const substring = new Set<string>(), token = new Set<string>(), telemetry = object(candidate.telemetry.provenance, "telemetry provenance");
+  const add = (value: unknown, target: Set<string>) => strings(value, target), compound = (value: unknown, target: Set<string>) => { const values = new Set<string>(); strings(value, values); values.forEach((item) => (/[\d._:/-]/.test(item) ? substring : target).add(item)); };
+  for (const source of [candidate.id, candidate.artifactDirectory, manifestCandidate.configuration_hash, telemetry.model, telemetry.configuration_hash]) add(source, substring);
+  compound(telemetry.adapter, token); compound(telemetry.profile, token);
+  for (const source of [telemetry.harness, telemetry.provider, telemetry.attention, telemetry.agent]) add(source, token);
   const native = candidate.provenance;
-  for (const key of ["candidate_id", "adapter", "harness", "provider", "model", "attention", "agent", "profile"]) strings(native[key], values);
-  strings(object(native.adapter_execution ?? {}, "adapter execution").executable, values);
-  return [...values].filter(Boolean);
+  for (const key of ["candidate_id", "model"]) add(native[key], substring);
+  compound(native.adapter, token); compound(native.profile, token);
+  for (const key of ["harness", "provider", "attention", "agent"]) add(native[key], token);
+  add(object(native.adapter_execution ?? {}, "adapter execution").executable, substring);
+  return { substring: [...substring].filter(Boolean).sort(), token: [...token].filter(Boolean).sort() };
 }
 
 export async function loadPhase2Run(runDirectory: string): Promise<LoadedRun> {
@@ -66,7 +74,7 @@ export async function loadPhase2Run(runDirectory: string): Promise<LoadedRun> {
   if (typeof taskContract.objective !== "string" || hash(taskContract.objective) !== taskContract.task_contract_hash || taskContract.task_contract_hash !== manifest.task_contract_hash || !Array.isArray(taskContract.instructions) || !Array.isArray(taskContract.acceptance_criteria) || !Array.isArray(taskContract.validation_commands)) throw new Error("task contract integrity check failed");
   const manifestCandidates = array(manifest.candidates, "manifest candidates"); if (manifest.candidate_count !== manifestCandidates.length) throw new Error("manifest candidate count mismatch");
   const seen = new Set<string>(), actual = new Set((await readdir(join(directory, "candidates"), { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => `candidates/${entry.name}`));
-  const candidates: CandidatePacket[] = []; const forbidden = new Set<string>();
+  const candidates: CandidatePacket[] = []; const forbidden: IdentityInventory = { substring: [], token: [] };
   for (const raw of manifestCandidates) {
     const entry = object(raw, "manifest candidate"), id = text(entry.candidate_id, "candidate id"), artifactDirectory = text(entry.artifact_directory, "artifact directory");
     if (!portable(artifactDirectory) || artifactDirectory !== `candidates/${id}` || seen.has(artifactDirectory) || !actual.delete(artifactDirectory)) throw new Error("candidate artifact integrity check failed");
@@ -74,10 +82,10 @@ export async function loadPhase2Run(runDirectory: string): Promise<LoadedRun> {
     const [telemetry, validation, provenance, diff] = await Promise.all([readJson(join(absolute, "telemetry.json")), readJson(join(absolute, "validation.json")), readJson(join(absolute, "provenance.json")), readFile(join(absolute, "candidate.diff"), "utf8")]);
     if (!phase3PacketReady({ telemetry, validation, artifactDirectory, taskContract })) throw new Error("candidate packet is not ready");
     const source = object(telemetry.provenance, "telemetry provenance"); if (source.candidate_id !== id || source.task_contract_hash !== manifest.task_contract_hash || source.configuration_hash !== entry.configuration_hash) throw new Error("candidate provenance integrity check failed");
-    const candidate = { id, label: "", artifactDirectory, telemetry, validation, provenance, diff }; forbiddenInventory(candidate, entry).forEach((item) => forbidden.add(item)); candidates.push(candidate);
+    const candidate = { id, label: "", artifactDirectory, telemetry, validation, provenance, diff }, identities = forbiddenInventory(candidate, entry); forbidden.substring.push(...identities.substring); forbidden.token.push(...identities.token); candidates.push(candidate);
   }
   if (actual.size) throw new Error("candidate artifact integrity check failed");
-  return { directory, manifest, snapshot, taskContract, candidates, forbidden: [...forbidden] };
+  return { directory, manifest, snapshot, taskContract, candidates, forbidden: { substring: [...new Set(forbidden.substring)].sort(), token: [...new Set(forbidden.token)].sort() } };
 }
 
 function maskedCandidates(run: LoadedRun): CandidatePacket[] { const seed = `${judgeSchemaVersion}:${run.manifest.run_id}:${run.manifest.trial_id}:${run.manifest.task_contract_hash}:${run.manifest.normalized_trial_snapshot_hash}`; return [...run.candidates].sort((a, b) => hash(`${seed}:${a.id}`).localeCompare(hash(`${seed}:${b.id}`))).map((candidate, index) => ({ ...candidate, label: labelAt(index) })); }
@@ -111,7 +119,7 @@ export function buildJudgePacket(run: LoadedRun, limits: PacketLimits = defaultP
 
 function exact(value: Record<string, unknown>, keys: string[], label: string): void { if (Object.keys(value).length !== keys.length || keys.some((key) => !(key in value))) throw new Error(`${label} is invalid`); }
 function bounded(value: unknown, label: string): string { const result = text(value, label); if (result.length > maxText) throw new Error(`${label} is invalid`); return result; }
-export function validateJudgeResponse(value: unknown, labels: string[], eligible: Set<string>, forbidden: string[] = []): Record<string, unknown> {
+export function validateJudgeResponse(value: unknown, labels: string[], eligible: Set<string>, forbidden: IdentityInventory | string[] = []): Record<string, unknown> {
   ensureSafe(value, forbidden); const result = object(value, "judge response"); exact(result, ["schema_version", "verdict", "recommended_labels", "confidence", "ranking", "criteria_by_candidate", "strengths_by_candidate", "risks_by_candidate", "limitations", "summary"], "judge response");
   if (result.schema_version !== judgeSchemaVersion || !["RECOMMENDATION", "TIE", "INCONCLUSIVE"].includes(String(result.verdict)) || !["low", "medium", "high"].includes(String(result.confidence))) throw new Error("judge response is invalid");
   const recommended = array(result.recommended_labels, "recommended labels").map((item) => bounded(item, "recommended label")); if (recommended.length > maxList || new Set(recommended).size !== recommended.length || recommended.some((label) => !eligible.has(label))) throw new Error("judge response is invalid");
