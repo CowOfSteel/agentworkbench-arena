@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 3 masked semantic-adjudication implementation and deterministic tests are complete, including the final packet-admission, temporary-staging, no-quota preview, and identity-policy matcher repairs. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 2 deterministic evidence remains authoritative. No live Sol adjudication has occurred during implementation, CI, or the finalized dry-run.
+Phase 3 masked semantic-adjudication implementation and deterministic tests are complete, including the final packet-admission, temporary-staging, no-quota preview, identity-policy matcher, and non-Git judge-staging repairs. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 2 deterministic evidence remains authoritative. No Sol response has been received during implementation, CI, or the finalized dry-run.
 
 Latest implementation commit before this documentation closeout:
 `d7a0046bf590561df9148d02728e78ff7c851693` (`Ignore executable provenance metadata`).
@@ -40,6 +40,7 @@ Latest implementation commit before this documentation closeout:
 - Strengthened strict judge response and one-repair handling. Fake-judge tests cover recommendation, tie, inconclusive, no-winner, repairs, timeout/launch failures, masking, and bounded packet evidence. GitHub Actions run `29777857463` passed on Windows.
 - Repaired final Phase 3 admission and execution gaps: task-contract objective hashes are recomputed against both stored and manifest hashes; live judges stage only masked data in a fresh OS-temporary directory that is removed in `finally`; and dry runs atomically refresh only `phase3-preview/`. Fake-judge tests prove isolation, cleanup after success/failure/timeout, no serialized temporary path, and a later real adjudication after preview. GitHub Actions run `29779163879` passed on Windows.
 - Repaired the final identity-policy false positive: strong or high-entropy identities may use substring detection; generic configuration values use contextual or token-aware detection; executable provenance contributes only the executable path, not metadata values such as source labels; and ordinary words such as `allowed`, `build`, and `path` remain valid evidence. GitHub Actions run `29782277331` passed on Windows after this matcher fix.
+- The first authenticated Sol Low proof reached the local CLI but exited before a Sol response because the fresh OS-temporary staging directory was not a trusted Git repository. The judge adapter now passes `--skip-git-repo-check`; a fresh copied Low proof remains pending.
 
 ## Acceptance criteria status
 
