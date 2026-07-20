@@ -71,6 +71,8 @@ test("Phase 2 run writes canonical artifacts, portable validation, facts, gates,
     assert.equal(telemetry.usage.input_tokens.value, 12);
     assert.equal(telemetry.change_analysis.pre_validation.lines_added, 1);
     assert.equal(telemetry.hard_gates.find((gate: { id: string }) => gate.id === "allowed_path_policy").status, "passed");
+    assert.deepEqual(telemetry.hard_gates.map((gate: { id: string }) => gate.id), ["required_validation_completed", "required_validation_passed", "allowed_path_policy", "dependency_policy", "worktree_recoverable", "nonempty_candidate_result", "process_timeout", "required_evidence_complete", "intervention_policy", "acceptance_validator"]);
+    assert.equal(telemetry.hard_gates.find((gate: { id: string }) => gate.id === "dependency_policy").status, "passed");
     assert.equal(validation.commands[0].working_directory, "<path:worktree>");
     assert.equal(validation.commands[0].stdout, "checked");
     assert.equal(validation.commands[0].stderr, "diagnostic");
