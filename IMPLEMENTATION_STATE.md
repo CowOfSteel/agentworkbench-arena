@@ -5,7 +5,7 @@
 Phase 3 masked semantic-adjudication POC is complete. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 2 deterministic evidence remains authoritative. No live Sol adjudication was run during implementation or CI.
 
 Latest implementation commit before this documentation closeout:
-`e92683fd2a331f8217d2b2433cb9c871944a9039`.
+`a45c4a6667e1d1d602dabfd4f9726db0a6e4e4f8`.
 
 ## Completed work
 
@@ -36,6 +36,8 @@ Latest implementation commit before this documentation closeout:
 - Added Phase 3 finalized-packet validation, stable identity masking, bounded allowlisted judge packets, strict schema validation, one structural repair attempt, and complete adjudication/evaluation artifacts.
 - Added a separate read-only, ephemeral Codex Sol judge adapter. Its default is Low reasoning; High is explicit human-only stabilization; higher efforts are rejected. Tests use fake judges only.
 - GitHub Actions run `29776242801` passed on Windows for the Phase 3 implementation.
+- Repaired the Phase 3 packet audit: new runs now preserve a hash-checked canonical `task-contract.json`; packets reject identity/path leakage, preserve safe relative diff filenames, enforce symmetric limits, and controller-owned evaluation records complete exclusion evidence.
+- Strengthened strict judge response and one-repair handling. Fake-judge tests cover recommendation, tie, inconclusive, no-winner, repairs, timeout/launch failures, masking, and bounded packet evidence. GitHub Actions run `29777857463` passed on Windows.
 
 ## Acceptance criteria status
 
@@ -50,6 +52,7 @@ Latest implementation commit before this documentation closeout:
 - [x] Phase 2 deterministic normalized/raw telemetry, validation, change facts, hard gates, evidence completeness, and manifest implemented and tested with fake adapters and temporary Git repositories.
 - [x] Phase 2 audit repairs and Windows GitHub Actions verification completed; its finalized packets are consumed unchanged by Phase 3.
 - [x] Phase 3 masked semantic-adjudication POC is implemented and tested without model-quota use. Failed or unavailable deterministic gates remain ineligible and cannot be overridden.
+- [x] Phase 3 audit repairs are implemented and Windows-CI verified. Phase 4 remains unstarted.
 - [x] `IMPORT_COMPARISON_FALLBACK` remains a documented contingency only; it is not the active mode and is not implemented.
 
 ## Commands and evidence verified
@@ -66,6 +69,7 @@ Latest implementation commit before this documentation closeout:
 - Codex Luna Low native diagnostic - passed.
 - OpenCode Luna Low native diagnostic - passed.
 - Phase 3 fake-judge packet, masking, repair, no-winner, failure, and dry-run tests - passed; GitHub Actions run `29776242801` passed.
+- Phase 3 task-contract, identity/path rejection, relative diff, budget, strict-response, evaluation, and repair tests - passed; GitHub Actions run `29777857463` passed.
 
 ## Historical evidence
 
