@@ -2,7 +2,7 @@
 
 AgentWorkbench Arena is a local calibration tool for comparing complete coding-agent configurations on a user-owned repository. It is a separate contest-period prototype of a future AgentWorkbench configuration-calibration system.
 
-The project is currently in the Phase 1 native feasibility spike. It runs the locked six candidate configurations sequentially in isolated Git worktrees and preserves raw evidence for inspection.
+Phase 1 native feasibility is complete with a passing `LIVE_MODE` gate. Phase 2 remains unstarted; the project runs the locked six candidate configurations sequentially in isolated Git worktrees and preserves raw evidence for inspection.
 
 ## Quick start
 
