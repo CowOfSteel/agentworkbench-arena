@@ -42,12 +42,14 @@ function strings(value: unknown, target: Set<string>): void { if (typeof value =
 function failPolicy(): never { throw new Error("judge packet violates identity or path policy"); }
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 function inventory(value: IdentityInventory | string[]): IdentityInventory { return Array.isArray(value) ? { substring: value, token: [] } : value; }
-function ensureSafe(value: unknown, forbidden: IdentityInventory | string[], runDirectory = ""): void {
+const genericIdentityField = /^(?:attention|variant|harness|provider|agent|profile|adapter|reasoning[_ -]?effort)$/i;
+const genericLeak = (value: string, tokens: string[], field = ""): boolean => tokens.some((item) => item && (genericIdentityField.test(field) && new RegExp(`^${escapeRegex(item)}$`, "i").test(value) || new RegExp(`(?:["']?(?:attention|variant|harness|provider|agent|profile|adapter|reasoning[ _-]?effort)["']?)\\s*(?::|=|\\bis\\b)\\s*["']?${escapeRegex(item)}\\b`, "i").test(value)));
+function ensureSafe(value: unknown, forbidden: IdentityInventory | string[], runDirectory = "", field = ""): void {
   if (typeof value === "string") {
     const lower = value.toLocaleLowerCase(), identities = inventory(forbidden), tokenValue = value.replaceAll("<path:redacted>", "");
-    if (pathPattern.test(value) || (runDirectory && lower.includes(runDirectory.toLocaleLowerCase())) || identities.substring.some((item) => item && lower.includes(item.toLocaleLowerCase())) || identities.token.some((item) => item && new RegExp(`\\b${escapeRegex(item)}\\b`, "i").test(tokenValue))) failPolicy();
-  } else if (Array.isArray(value)) value.forEach((item) => ensureSafe(item, forbidden, runDirectory));
-  else if (value && typeof value === "object") Object.values(value).forEach((item) => ensureSafe(item, forbidden, runDirectory));
+    if (pathPattern.test(value) || (runDirectory && lower.includes(runDirectory.toLocaleLowerCase())) || identities.substring.some((item) => item && lower.includes(item.toLocaleLowerCase())) || genericLeak(tokenValue, identities.token, field)) failPolicy();
+  } else if (Array.isArray(value)) value.forEach((item) => ensureSafe(item, forbidden, runDirectory, field));
+  else if (value && typeof value === "object") Object.entries(value).forEach(([key, item]) => ensureSafe(item, forbidden, runDirectory, key));
 }
 function safeText(value: string, forbidden: IdentityInventory | string[], runDirectory: string): string { const sanitized = sanitizePaths(value); ensureSafe(sanitized, forbidden, runDirectory); return sanitized; }
 
@@ -61,7 +63,9 @@ function forbiddenInventory(candidate: CandidatePacket, manifestCandidate: Recor
   for (const key of ["candidate_id", "model"]) add(native[key], substring);
   compound(native.adapter, token); compound(native.profile, token);
   for (const key of ["harness", "provider", "attention", "agent"]) add(native[key], token);
-  add(object(native.adapter_execution ?? {}, "adapter execution").executable, substring);
+  const executable = object(native.adapter_execution ?? {}, "adapter execution").executable;
+  if (typeof executable === "string") add(executable, substring);
+  else if (executable && typeof executable === "object" && !Array.isArray(executable)) add(object(executable, "executable").path, substring);
   return { substring: [...substring].filter(Boolean).sort(), token: [...token].filter(Boolean).sort() };
 }
 
