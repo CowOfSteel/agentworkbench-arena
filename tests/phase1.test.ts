@@ -59,6 +59,10 @@ test("schema validates IDs and native arguments explicitly", async () => {
   assert.equal(classifyFailure("completed successfully", false, 0), undefined);
   assert.equal(classifyFailure("completed successfully", false, 1), "candidate_task");
   assert.equal(classifyFailure("permission denied", false, 0), "permission");
+  assert.equal(classifyFailure("authoritative hard gates", false, 1), "candidate_task");
+  assert.equal(classifyFailure("authentication failed", false, 1), "authentication");
+  assert.equal(classifyFailure("invalid_json_schema", false, 1), "unsupported_configuration");
+  assert.equal(classifyFailure("invalid schema", false, 1), "unsupported_configuration");
   assert.equal(classifyFailure("", true), "timeout");
   assert.equal(extractOpenCodeText('{"type":"text","part":{"type":"text","text":"provider-neutral"}}'), "provider-neutral");
 });

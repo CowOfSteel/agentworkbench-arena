@@ -184,6 +184,8 @@ test("intervention gate distinguishes pass, failure, and unavailable evidence", 
 test("phase three packet readiness validates evidence rather than hard-gate outcome", () => {
   const ready = { telemetry: { finalization_status: "complete", hard_gates: [{ status: "failed" }], evidence_completeness: { status: "complete", artifacts: [] }, provenance: { task_contract_hash: "task", configuration_hash: "config" } }, validation: { commands: [] }, artifactDirectory: "candidates/one" };
   assert.equal(phase3PacketReady(ready), true);
+  assert.equal(phase3PacketReady({ ...ready, taskContract: { task_contract_hash: "task", objective: "task" } }), true);
+  assert.equal(phase3PacketReady({ ...ready, taskContract: { task_contract_hash: "other", objective: "task" } }), false);
   assert.equal(phase3PacketReady({ ...ready, telemetry: { ...ready.telemetry, finalization_status: "pending" } }), false);
   assert.equal(phase3PacketReady({ ...ready, artifactDirectory: "C:/private" }), false);
 });
@@ -206,6 +208,7 @@ test("Phase 2 run writes canonical artifacts, portable validation, facts, gates,
     const telemetry = JSON.parse(await readFile(join(candidate, "telemetry.json"), "utf8"));
     const validation = JSON.parse(await readFile(join(candidate, "validation.json"), "utf8"));
     const manifest = JSON.parse(await readFile(join(result.directory, "manifest.json"), "utf8"));
+    const taskContract = JSON.parse(await readFile(join(result.directory, "task-contract.json"), "utf8"));
     assert.equal(telemetry.execution.wall_clock_ms.value, 10);
     assert.equal(telemetry.execution.retry_overhead_ms.value, 0);
     assert.equal(telemetry.usage.input_tokens.value, 12);
@@ -217,6 +220,8 @@ test("Phase 2 run writes canonical artifacts, portable validation, facts, gates,
     assert.equal(validation.commands[0].stdout, "checked");
     assert.equal(validation.commands[0].stderr, "diagnostic");
     assert.equal(manifest.candidates[0].artifact_directory, "candidates/one");
+    assert.equal(manifest.task_contract_artifact, "task-contract.json");
+    assert.equal(taskContract.task_contract_hash, manifest.task_contract_hash);
     assert.ok(!JSON.stringify(manifest).includes(source));
   } finally { await rm(temporary, { recursive: true, force: true }); }
 });

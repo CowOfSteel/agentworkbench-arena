@@ -639,7 +639,7 @@ candidates:
 judge:
   adapter: codex-exec
   model: gpt-5.6-sol
-  variant: high
+  variant: low # High is reserved for an explicit final stabilization run.
 ```
 
 Exact model identifiers must be resolved from the locally installed clients rather than assumed by the schema.
@@ -1166,6 +1166,10 @@ The system can produce:
 * a semantic comparison;
 * a final recommendation;
 * a clear explanation of uncertainty.
+
+### Current repository status
+
+Phase 3 implementation and deterministic tests are complete, and the finalized Phase 2 dry-run is verified without a Sol invocation. One authenticated Sol Low proof remains as the final manual Phase 3 gate; Sol High is reserved for later end-to-end stabilization. Phase 4 has not started.
 
 ---
 

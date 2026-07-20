@@ -2,7 +2,9 @@
 
 AgentWorkbench Arena is a local calibration tool for comparing complete coding-agent configurations on a user-owned repository. It is a separate contest-period prototype of a future AgentWorkbench configuration-calibration system.
 
-Phase 1 native feasibility is complete with a passing `LIVE_MODE` gate. Phase 2 now adds deterministic telemetry, independent canonical validation, explicit hard gates, and a portable run manifest; it does not adjudicate, rank, or recommend candidates.
+Phase 1 native feasibility is complete with a passing `LIVE_MODE` gate. Phase 2 supplies deterministic telemetry, independent canonical validation, explicit hard gates, and a portable run manifest. Phase 3 can consume only finalized Phase 2 packets for identity-masked semantic adjudication; deterministic hard gates remain authoritative.
+
+Phase 3 implementation and deterministic tests are complete, and the real finalized Phase 2 dry-run has been verified without invoking Sol. One authenticated Sol Low proof remains as the final manual Phase 3 gate. Sol High is reserved for final end-to-end stabilization, and Phase 4 has not started.
 
 ## Quick start
 
@@ -38,7 +40,7 @@ codex login
 
 ## Deterministic artifacts
 
-Each candidate receives `raw-telemetry.json`, `telemetry.json`, and `validation.json`; every run receives `manifest.json` and `trial-snapshot.json`. Raw events remain authoritative. `telemetry.json` uses `{ value, availability, source }`: unavailable data is `null`, while zero is emitted only when Arena establishes it.
+Each candidate receives `raw-telemetry.json`, `telemetry.json`, and `validation.json`; every run receives `manifest.json`, `trial-snapshot.json`, and a hash-checked `task-contract.json`. The task contract preserves the safe objective and contract policies needed for Phase 3; historical runs without it remain valid Phase 2 evidence but cannot be adjudicated. Raw events remain authoritative. `telemetry.json` uses `{ value, availability, source }`: unavailable data is `null`, while zero is emitted only when Arena establishes it.
 
 Candidate process duration is measured with a monotonic clock across all attempts. Validation duration is measured separately and never attributed to candidate execution. The manifest measures the full Arena pipeline through finalization. Native timing and usage remain source-native facts in `raw-telemetry.json`.
 
@@ -46,11 +48,15 @@ Trials must declare `validation_timeout_ms` and `dependency_policy`. `no_changes
 
 The ten hard gates are explicit in each `telemetry.json`; an unavailable gate cannot pass, and no future adjudicator may override a failed gate. Artifact completeness is finalized after telemetry generation so its self-check is deterministic.
 
+## Phase 3 adjudication
+
+`arena adjudicate <run-directory> --dry-run` validates a finalized packet, constructs no candidate worktrees, uses no model quota, and atomically refreshes the inspectable `<run-directory>/phase3-preview/` cache. That cache contains only `masked-judge-input.json`, `judge-output-schema.json`, and `dry-run.json`; it creates neither an identity map nor adjudication/evaluation artifacts. A real adjudication uses one fresh OS-temporary staging directory outside the run tree, read-only ephemeral Codex execution, and `approval_policy="never"`; the staging directory is deleted after the original and optional single repair call. It defaults to `gpt-5.6-sol` at Low reasoning. `--reasoning high` is reserved for an explicit human final-stabilization run; efforts above High are rejected. The judge sees only labels and a bounded allowlisted packet: real identities, provenance, configuration hashes, machine paths, and unsafe validation output are rejected. It writes masked input, execution/repair evidence, and `evaluation.json`, never a Phase 4 report or `recommendation.yml`.
+
 ## Phase boundaries
 
 Phase 1 contains the fixture, YAML trial schema, Codex and OpenCode native adapters, sequential worktree runner, and raw evidence preservation. Candidate count is configuration data: the first trial has six candidates, while adding a seventh changes only the trial file.
 
-It does not contain GPT-5.6 adjudication, identity masking, HTML reporting, ranking, recommendations, import fallback, plugin orchestration, controlled tool comparisons, parallel execution, additional adapters, automatic routing, or AgentWorkbench v1 integration.
+Phase 3 adds only identity-masked adjudication artifacts and `evaluation.json`. It does not add HTML reporting, `recommendation.yml`, dashboards, import fallback, plugin orchestration, controlled tool comparisons, parallel execution, additional candidate adapters, automatic routing, or AgentWorkbench v1 integration.
 
 See [`docs/COMPETITION-SPRINT-ROADMAP.md`](docs/COMPETITION-SPRINT-ROADMAP.md) for the authoritative roadmap, [`SCOPE.md`](SCOPE.md) for boundaries, [`DECISIONS.md`](DECISIONS.md) for locked decisions, and [`IMPLEMENTATION_STATE.md`](IMPLEMENTATION_STATE.md) for current status.
 
