@@ -1,4 +1,4 @@
-import { CodexExecAdapter, OpenCodeRunAdapter } from "./adapters";
+import { CandidateAdapter, CodexExecAdapter, OpenCodeRunAdapter } from "./adapters";
 import { runDiagnostic, runTrial } from "./runner";
 import { loadTrial } from "./trial";
 
@@ -8,6 +8,7 @@ Usage:
   arena --help
   arena doctor <trial.yml>
   arena run <trial.yml>
+  arena diagnose <trial.yml> <candidate-id>
   arena diagnostic <trial.yml> <candidate-id>
 
 Runs native candidates sequentially in isolated Git worktrees and preserves raw evidence.
@@ -24,20 +25,20 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<numb
     return 0;
   }
 
-  if ((args[0] === "doctor" || args[0] === "run" || args[0] === "diagnostic") && args[1]) {
+  if ((args[0] === "doctor" || args[0] === "run" || args[0] === "diagnose" || args[0] === "diagnostic") && args[1]) {
     const trial = await loadTrial(args[1]);
-    const adapters = new Map([
+    const adapters: Map<string, CandidateAdapter> = new Map([
       ["codex-exec", new CodexExecAdapter()],
       ["opencode-run", new OpenCodeRunAdapter()]
     ]);
     if (args[0] === "doctor") {
       const required = new Set<string>(trial.candidates.map((candidate) => candidate.adapter));
-      const checks = await Promise.all([...adapters.entries()].map(async ([id, adapter]) => ({ id, result: await adapter.doctor() })));
+      const checks = await Promise.all([...adapters.entries()].map(async ([id, adapter]) => ({ id, result: await adapter.doctor(trial.candidates.find((candidate) => candidate.adapter === id)) })));
       console.log(JSON.stringify({ trial_id: trial.id, candidate_count: trial.candidates.length, adapters: checks.map(({ result }) => result) }, null, 2));
       return checks.every(({ id, result }) => !required.has(id) || result.ok) ? 0 : 1;
     }
-    if (args[0] === "diagnostic") {
-      if (!args[2] || args[3]) throw new Error("usage: arena diagnostic <trial.yml> <candidate-id>");
+    if (args[0] === "diagnose" || args[0] === "diagnostic") {
+      if (!args[2] || args[3]) throw new Error("usage: arena diagnose <trial.yml> <candidate-id>");
       const result = await runDiagnostic(trial, args[2], adapters);
       console.log(JSON.stringify({ run_directory: result.directory, candidate: result.candidate.candidateId, passed: result.passed, diagnostic: result.diagnosticPath }, null, 2));
       return result.passed ? 0 : 1;

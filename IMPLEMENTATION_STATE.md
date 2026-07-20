@@ -20,6 +20,7 @@ Phase 1 audit repair — native feasibility evidence is preserved historically; 
 - Removed unsupported Phase 1 resume behavior. Added bounded single-candidate native diagnostics and a Windows PR workflow.
 - Inspected the prior OpenCode raw streams: they ended after completed tool/step events without a terminal or final event, so the historical timeout is recorded as failure to exit rather than a permission wait.
 - Deterministic verification passed, but the fresh Codex Luna Low diagnostic failed with a read-only sandbox permission rejection. Per the gate, OpenCode diagnostic and the fresh six-candidate trial were not run.
+- Repaired the Codex adapter to use executable resolution, an Arena-owned minimal `CODEX_HOME`, inherited access-token authentication, sanitized executable provenance, and the `arena diagnose` alias. Native diagnostics remain human-only and unrun after this repair.
 
 ## Acceptance criteria status
 

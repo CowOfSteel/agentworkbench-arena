@@ -2,14 +2,14 @@ import { createHash } from "node:crypto";
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { parse } from "yaml";
-import { CandidateAdapter, CandidateRequest, CandidateExecution, classifyFailure, codexArgs, extractOpenCodeText, openCodeArgs, openCodePermissionConfig, runProcess } from "../src/adapters";
+import { CandidateAdapter, CandidateRequest, CandidateExecution, classifyFailure, CodexExecAdapter, codexArgs, executableVersion, extractOpenCodeText, openCodeArgs, openCodePermissionConfig, resolveCodexExecutable, runProcess, sanitizeExecutablePath } from "../src/adapters";
 import { validateFractionalPrice } from "../src/acceptance";
 import { runDiagnostic, runTrial } from "../src/runner";
-import { loadTrial, validateTrial } from "../src/trial";
+import { Candidate, loadTrial, validateTrial } from "../src/trial";
 
 const git = (cwd: string, args: string[]) => execFileSync("git", args, { cwd, encoding: "utf8" });
 
@@ -41,7 +41,9 @@ test("schema validates IDs and native arguments explicitly", async () => {
   assert.deepEqual(codex.slice(0, 3), ["exec", "--json", "--output-last-message"]);
   assert.equal(codex[codex.indexOf("--sandbox") + 1], "workspace-write");
   assert.ok(codex.includes('model_reasoning_effort="low"'));
-  assert.ok(codex.includes('approval_policy="never"'));
+  assert.ok(!codex.includes("--ignore-user-config"));
+  assert.ok(codex.includes("--ignore-rules"));
+  assert.ok(codex.includes("--strict-config"));
   assert.ok(!codex.includes("--dangerously-bypass-approvals-and-sandbox"));
   const openRequest = { ...request, candidate: trial.candidates[3] };
   const open = openCodeArgs(openRequest);
@@ -57,6 +59,33 @@ test("schema validates IDs and native arguments explicitly", async () => {
   assert.equal(classifyFailure("permission denied", false, 0), "permission");
   assert.equal(classifyFailure("", true), "timeout");
   assert.equal(extractOpenCodeText('{"type":"text","part":{"type":"text","text":"provider-neutral"}}'), "provider-neutral");
+});
+
+test("Codex executable resolution prefers trial, environment, Arena config, then PATH", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-codex-resolution-"));
+  const configPath = join(temporary, "config.json");
+  const candidate: Candidate = { id: "codex", adapter: "codex-exec", harness: "codex", model: "fake", adapterOptions: { codex_executable: "trial.cmd" } };
+  try {
+    await writeFile(configPath, JSON.stringify({ codex_executable: "arena.cmd" }));
+    assert.deepEqual(await resolveCodexExecutable(candidate, { ARENA_CODEX_EXECUTABLE: "environment.cmd" }, configPath), { source: "trial", path: "trial.cmd" });
+    assert.deepEqual(await resolveCodexExecutable({ ...candidate, adapterOptions: {} }, { ARENA_CODEX_EXECUTABLE: "environment.cmd" }, configPath), { source: "environment", path: "environment.cmd" });
+    assert.deepEqual(await resolveCodexExecutable({ ...candidate, adapterOptions: {} }, {}, configPath), { source: "arena_config", path: "arena.cmd" });
+    assert.deepEqual(await resolveCodexExecutable({ ...candidate, adapterOptions: {} }, {}, join(temporary, "missing.json")), { source: "path", path: "codex" });
+    const home = join(temporary, "home");
+    assert.equal(sanitizeExecutablePath(join(home, "npm", "codex.cmd"), home), `<user-home>${process.platform === "win32" ? "\\" : "/"}npm${process.platform === "win32" ? "\\" : "/"}codex.cmd`);
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("Windows .cmd executables run and report versions", { skip: process.platform !== "win32" }, async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-codex-cmd-"));
+  const command = join(temporary, "codex.cmd");
+  try {
+    await writeFile(command, "@echo off\r\necho cmd-version\r\necho %1\r\n");
+    assert.match((await executableVersion(command)).version ?? "", /^cmd-version/);
+    const execution = await runProcess(command, ["one & two"], temporary, 1000, join(temporary, "stdout.log"), join(temporary, "stderr.log"));
+    assert.equal(execution.exitCode, 0);
+    assert.match(await readFile(join(temporary, "stdout.log"), "utf8"), /cmd-version\s+"?one & two"?/);
+  } finally { await rm(temporary, { recursive: true, force: true }); }
 });
 
 class FakeAdapter implements CandidateAdapter {
@@ -187,10 +216,41 @@ test("execution records redact prompts and config values and store the task hash
     trial.taskContract = "fix secret-token";
     await runTrial(trial, new Map([["codex-exec", new RedactingAdapter()]]), output);
     const recordText = await readFile(join(output, "candidates", "secret", "execution.json"), "utf8");
+    const provenanceText = await readFile(join(output, "candidates", "secret", "provenance.json"), "utf8");
     const record = JSON.parse(recordText) as { task_contract_hash: string };
     assert.equal(record.task_contract_hash, createHash("sha256").update(trial.taskContract).digest("hex"));
     assert.doesNotMatch(recordText, /secret-token|secret-config/);
+    assert.doesNotMatch(provenanceText, /secret-token|secret-config/);
   } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("Codex attempts isolate config and keep access tokens out of evidence", { skip: process.platform !== "win32" }, async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-codex-home-"));
+  const repository = await makeRepository(temporary);
+  const command = join(temporary, "codex.cmd");
+  const previousToken = process.env.CODEX_ACCESS_TOKEN;
+  process.env.CODEX_ACCESS_TOKEN = "access-token-secret";
+  try {
+    await writeFile(command, "@echo off\r\necho fake-codex\r\n");
+    const candidates = ["one", "two"].map((id) => ({ id, adapter: "codex-exec" as const, harness: "codex", model: "fake", adapterOptions: { codex_executable: command } }));
+    const trial = makeTrial(repository, candidates);
+    trial.taskContract = "prompt-secret";
+    const output = join(temporary, "output");
+    await runTrial(trial, new Map([["codex-exec", new CodexExecAdapter()]]), output);
+    const candidate = join(output, "candidates", "one");
+    const config = await readFile(join(candidate, "attempts", "attempt-1", "codex-home", "config.toml"), "utf8");
+    const provenance = await readFile(join(candidate, "provenance.json"), "utf8");
+    assert.equal(config, 'approval_policy = "never"\nsandbox_mode = "workspace-write"\n');
+    assert.match(provenance, /"source": "trial"/);
+    assert.match(provenance, /<user-home>/);
+    assert.doesNotMatch(provenance, new RegExp(homedir().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+    assert.doesNotMatch(provenance, /prompt-secret|access-token-secret/);
+    assert.equal(JSON.parse(await readFile(join(candidate, "execution.json"), "utf8")).artifact_availability["attempts/attempt-1/codex-home/config.toml"], true);
+  } finally {
+    if (previousToken === undefined) delete process.env.CODEX_ACCESS_TOKEN;
+    else process.env.CODEX_ACCESS_TOKEN = previousToken;
+    await rm(temporary, { recursive: true, force: true });
+  }
 });
 
 test("independent fractional-price acceptance rejects baseline and accepts the correct implementation", async () => {
@@ -241,6 +301,20 @@ class ProbeAdapter implements CandidateAdapter {
   }
 }
 
+class ReadOnlyProbeAdapter extends ProbeAdapter {
+  async execute(request: CandidateRequest): Promise<CandidateExecution> {
+    return { ...await super.execute(request), failureKind: "permission" };
+  }
+}
+
+class MissingProbeAdapter implements CandidateAdapter {
+  async doctor() { return { adapter: "fake", ok: true }; }
+  async execute(request: CandidateRequest): Promise<CandidateExecution> {
+    await Promise.all([writeFile(join(request.artifactDirectory, "stdout.log"), "completed\n"), writeFile(join(request.artifactDirectory, "stderr.log"), "")]);
+    return { args: ["fake"], startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:00:00.001Z", durationMs: 1, exitCode: 0, timedOut: false };
+  }
+}
+
 test("diagnostic records a bounded successful write probe", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "arena-diagnostic-"));
   const repository = await makeRepository(temporary);
@@ -250,6 +324,30 @@ test("diagnostic records a bounded successful write probe", async () => {
     const result = await runDiagnostic(trial, "one", new Map([["codex-exec", new ProbeAdapter()]]), join(temporary, "output"));
     assert.equal(result.passed, true);
     assert.equal(JSON.parse(await readFile(result.diagnosticPath, "utf8")).marker, true);
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("diagnostic fails a permission rejection even when Codex exits 0", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-diagnostic-permission-"));
+  const repository = await makeRepository(temporary);
+  try {
+    const trial = makeTrial(repository);
+    trial.allowedPaths.push("fixtures/bounded-inventory/src");
+    const result = await runDiagnostic(trial, "one", new Map([["codex-exec", new ReadOnlyProbeAdapter()]]), join(temporary, "output"));
+    assert.equal(result.passed, false);
+    assert.equal(JSON.parse(await readFile(result.diagnosticPath, "utf8")).clean_termination, false);
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("diagnostic fails when the expected probe file is absent", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-diagnostic-missing-"));
+  const repository = await makeRepository(temporary);
+  try {
+    const trial = makeTrial(repository);
+    trial.allowedPaths.push("fixtures/bounded-inventory/src");
+    const result = await runDiagnostic(trial, "one", new Map([["codex-exec", new MissingProbeAdapter()]]), join(temporary, "output"));
+    assert.equal(result.passed, false);
+    assert.equal(JSON.parse(await readFile(result.diagnosticPath, "utf8")).marker, false);
   } finally { await rm(temporary, { recursive: true, force: true }); }
 });
 

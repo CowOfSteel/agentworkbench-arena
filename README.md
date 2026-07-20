@@ -11,10 +11,21 @@ npm install
 npm run build
 npm test
 npm start -- doctor examples/bounded-fix/trial.yml
+npm start -- diagnose examples/bounded-fix/trial.yml codex-luna-low
 npm start -- run examples/bounded-fix/trial.yml
 ```
 
 The project uses TypeScript, Node.js, native Git/process capabilities, Node’s built-in test runner, and one YAML parser. It has no web framework, database, dashboard, or plugin framework.
+
+## Codex executable and authentication
+
+Codex resolution uses a candidate `adapter_options.codex_executable`, then `ARENA_CODEX_EXECUTABLE`, then a local `.arena/config.json`, and finally `codex` on `PATH`. Copy [`.arena/config.example.json`](.arena/config.example.json) for a local non-secret executable path; local config is ignored by Git.
+
+Arena creates a fresh Codex home for every attempt and requires an inherited `CODEX_ACCESS_TOKEN`; it never copies or records credentials. Before native Codex runs, confirm the token is set without printing it:
+
+```powershell
+if (-not $env:CODEX_ACCESS_TOKEN) { throw "Set CODEX_ACCESS_TOKEN in this shell before running Arena." }
+```
 
 ## Locked product direction
 

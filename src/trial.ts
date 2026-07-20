@@ -82,6 +82,12 @@ export function validateTrial(value: unknown): Trial {
       toolProvenance: candidate.tool_provenance === undefined ? undefined : object(candidate.tool_provenance, `candidates[${index}].tool_provenance`)
     };
   });
+  for (const [index, candidate] of parsedCandidates.entries()) {
+    const executable = candidate.adapterOptions?.codex_executable;
+    if (executable !== undefined && (candidate.adapter !== "codex-exec" || typeof executable !== "string" || !executable.trim())) {
+      throw new Error(`candidates[${index}].adapter_options.codex_executable must be a non-empty string for codex-exec`);
+    }
+  }
   const normalizedCandidateIds = parsedCandidates.map((candidate) => candidate.id.toLowerCase());
   if (new Set(normalizedCandidateIds).size !== parsedCandidates.length) throw new Error("candidate ids must be unique case-insensitively");
   const timeoutMs = raw.timeout_ms;
