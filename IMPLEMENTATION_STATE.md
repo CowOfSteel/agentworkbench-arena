@@ -2,10 +2,10 @@
 
 ## Current phase
 
-Phase 3 masked semantic-adjudication POC is complete. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 2 deterministic evidence remains authoritative. No live Sol adjudication was run during implementation or CI.
+Phase 3 masked semantic-adjudication POC is complete, including final packet-admission, temporary staging, and no-quota preview repairs. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 2 deterministic evidence remains authoritative. No live Sol adjudication was run during implementation or CI.
 
 Latest implementation commit before this documentation closeout:
-`a45c4a6667e1d1d602dabfd4f9726db0a6e4e4f8`.
+`32ea6b0d75ee42c190bdcf9309537bdb9b086757`.
 
 ## Completed work
 
@@ -38,6 +38,7 @@ Latest implementation commit before this documentation closeout:
 - GitHub Actions run `29776242801` passed on Windows for the Phase 3 implementation.
 - Repaired the Phase 3 packet audit: new runs now preserve a hash-checked canonical `task-contract.json`; packets reject identity/path leakage, preserve safe relative diff filenames, enforce symmetric limits, and controller-owned evaluation records complete exclusion evidence.
 - Strengthened strict judge response and one-repair handling. Fake-judge tests cover recommendation, tie, inconclusive, no-winner, repairs, timeout/launch failures, masking, and bounded packet evidence. GitHub Actions run `29777857463` passed on Windows.
+- Repaired final Phase 3 admission and execution gaps: task-contract objective hashes are recomputed against both stored and manifest hashes; live judges stage only masked data in a fresh OS-temporary directory that is removed in `finally`; and dry runs atomically refresh only `phase3-preview/`. Fake-judge tests prove isolation, cleanup after success/failure/timeout, no serialized temporary path, and a later real adjudication after preview. GitHub Actions run `29779163879` passed on Windows.
 
 ## Acceptance criteria status
 
@@ -52,7 +53,7 @@ Latest implementation commit before this documentation closeout:
 - [x] Phase 2 deterministic normalized/raw telemetry, validation, change facts, hard gates, evidence completeness, and manifest implemented and tested with fake adapters and temporary Git repositories.
 - [x] Phase 2 audit repairs and Windows GitHub Actions verification completed; its finalized packets are consumed unchanged by Phase 3.
 - [x] Phase 3 masked semantic-adjudication POC is implemented and tested without model-quota use. Failed or unavailable deterministic gates remain ineligible and cannot be overridden.
-- [x] Phase 3 audit repairs are implemented and Windows-CI verified. Phase 4 remains unstarted.
+- [x] Final Phase 3 gate repairs are implemented and Windows-CI verified. Phase 4 remains unstarted.
 - [x] `IMPORT_COMPARISON_FALLBACK` remains a documented contingency only; it is not the active mode and is not implemented.
 
 ## Commands and evidence verified
@@ -70,6 +71,7 @@ Latest implementation commit before this documentation closeout:
 - OpenCode Luna Low native diagnostic - passed.
 - Phase 3 fake-judge packet, masking, repair, no-winner, failure, and dry-run tests - passed; GitHub Actions run `29776242801` passed.
 - Phase 3 task-contract, identity/path rejection, relative diff, budget, strict-response, evaluation, and repair tests - passed; GitHub Actions run `29777857463` passed.
+- Phase 3 external temporary staging, inspectable dry-run preview, and recomputed task-contract integrity tests - passed; GitHub Actions run `29779163879` passed.
 
 ## Historical evidence
 
