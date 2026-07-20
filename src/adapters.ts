@@ -1,6 +1,7 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, extname, isAbsolute, join, resolve } from "node:path";
+import { performance } from "node:perf_hooks";
 import { Candidate } from "./trial";
 
 export type FailureKind = "launch" | "transport" | "authentication" | "unsupported_configuration" | "permission" | "candidate_task" | "timeout";
@@ -97,8 +98,8 @@ async function redactFile(path: string, redactions: string[]): Promise<void> {
 
 export async function runProcess(command: string, args: string[], cwd: string, timeoutMs: number, stdoutPath: string, stderrPath: string, options: RunProcessOptions = {}): Promise<CandidateExecution> {
   const { spawn } = await import("node:child_process");
-  const started = Date.now();
-  const startedAt = new Date(started).toISOString();
+  const started = performance.now();
+  const startedAt = new Date().toISOString();
   await mkdir(dirname(stdoutPath), { recursive: true });
   await Promise.all([writeFile(stdoutPath, ""), writeFile(stderrPath, "")]);
   return new Promise((resolve) => {
@@ -124,8 +125,8 @@ export async function runProcess(command: string, args: string[], cwd: string, t
         writeFile(stderrPath, redact(Buffer.concat(stderr).toString("utf8"), options.redactions))
       ]);
       const [stderrText, stdoutText] = await Promise.all([readFile(stderrPath, "utf8").catch(() => ""), readFile(stdoutPath, "utf8").catch(() => "")]);
-      const completed = Date.now();
-      resolve({ args, startedAt, completedAt: new Date(completed).toISOString(), durationMs: completed - started, exitCode,
+      const completed = performance.now();
+      resolve({ args, startedAt, completedAt: new Date().toISOString(), durationMs: Math.round(completed - started), exitCode,
         timedOut, launchError, failureKind: launchError ? "launch" : classifyFailure(`${stderrText}\n${stdoutText}`, timedOut, exitCode) });
     });
   });

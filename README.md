@@ -2,7 +2,7 @@
 
 AgentWorkbench Arena is a local calibration tool for comparing complete coding-agent configurations on a user-owned repository. It is a separate contest-period prototype of a future AgentWorkbench configuration-calibration system.
 
-Phase 1 native feasibility is complete with a passing `LIVE_MODE` gate. Phase 2 remains unstarted; the project runs the locked six candidate configurations sequentially in isolated Git worktrees and preserves raw evidence for inspection.
+Phase 1 native feasibility is complete with a passing `LIVE_MODE` gate. Phase 2 now adds deterministic telemetry, independent canonical validation, explicit hard gates, and a portable run manifest; it does not adjudicate, rank, or recommend candidates.
 
 ## Quick start
 
@@ -36,11 +36,21 @@ codex login
 - Raw evidence remains authoritative. The product compares complete configurations and does not make unsupported single-variable causal claims.
 - Plugins and tools may have reserved schema concepts later, but Phase 0 does not orchestrate, install, execute, or emit plugin-specific telemetry.
 
-## Phase 1 boundaries
+## Deterministic artifacts
+
+Each candidate receives `raw-telemetry.json`, `telemetry.json`, and `validation.json`; every run receives `manifest.json` and `trial-snapshot.json`. Raw events remain authoritative. `telemetry.json` uses `{ value, availability, source }`: unavailable data is `null`, while zero is emitted only when Arena establishes it.
+
+Candidate process duration is measured with a monotonic clock across all attempts. Validation duration is measured separately and never attributed to candidate execution. The manifest measures the full Arena pipeline through finalization. Native timing and usage remain source-native facts in `raw-telemetry.json`.
+
+Trials must declare `validation_timeout_ms` and `dependency_policy`. `no_changes` rejects semantic npm dependency additions/removals; package and lockfile changes remain separate deterministic facts. All validation commands use argument arrays, a bounded timeout, and portable worktree paths.
+
+The ten hard gates are explicit in each `telemetry.json`; an unavailable gate cannot pass, and no future adjudicator may override a failed gate. Artifact completeness is finalized after telemetry generation so its self-check is deterministic.
+
+## Phase boundaries
 
 Phase 1 contains the fixture, YAML trial schema, Codex and OpenCode native adapters, sequential worktree runner, and raw evidence preservation. Candidate count is configuration data: the first trial has six candidates, while adding a seventh changes only the trial file.
 
-It does not contain normalized telemetry, deterministic hard-gate ranking, GPT-5.6 adjudication, identity masking, HTML reporting, recommendations, import fallback, plugin orchestration, controlled tool comparisons, parallel execution, additional adapters, automatic routing, or AgentWorkbench v1 integration.
+It does not contain GPT-5.6 adjudication, identity masking, HTML reporting, ranking, recommendations, import fallback, plugin orchestration, controlled tool comparisons, parallel execution, additional adapters, automatic routing, or AgentWorkbench v1 integration.
 
 See [`docs/COMPETITION-SPRINT-ROADMAP.md`](docs/COMPETITION-SPRINT-ROADMAP.md) for the authoritative roadmap, [`SCOPE.md`](SCOPE.md) for boundaries, [`DECISIONS.md`](DECISIONS.md) for locked decisions, and [`IMPLEMENTATION_STATE.md`](IMPLEMENTATION_STATE.md) for current status.
 

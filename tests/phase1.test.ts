@@ -152,7 +152,7 @@ function makeTrial(repository: string, candidates = [
   { id: "one", adapter: "codex-exec" as const, harness: "fake", model: "fake" },
   { id: "two", adapter: "codex-exec" as const, harness: "fake", model: "fake" }
 ]) {
-  return { id: "test", repository, baselineRef: "baseline", taskContract: "fix", allowedPaths: ["src"], forbiddenPaths: [], validationCommands: [["git", "status", "--short"]], timeoutMs: 1000, maxLaunchTransportRetries: 1, manualIntervention: "forbidden" as const, provenance: {}, candidates };
+  return { id: "test", repository, baselineRef: "baseline", taskContract: "fix", allowedPaths: ["src"], forbiddenPaths: [], validationCommands: [["git", "status", "--short"]], timeoutMs: 1000, validationTimeoutMs: 1000, dependencyPolicy: "no_changes" as const, maxLaunchTransportRetries: 1, manualIntervention: "forbidden" as const, provenance: {}, candidates };
 }
 
 test("runner enumerates adapters generically and preserves inspectable evidence", async () => {

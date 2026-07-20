@@ -25,6 +25,8 @@ export interface Trial {
   allowedPaths: string[];
   forbiddenPaths: string[];
   validationCommands: string[][];
+  validationTimeoutMs: number;
+  dependencyPolicy: "no_changes" | "allow_changes";
   timeoutMs: number;
   maxLaunchTransportRetries: number;
   manualIntervention: "forbidden";
@@ -92,6 +94,10 @@ export function validateTrial(value: unknown): Trial {
   if (new Set(normalizedCandidateIds).size !== parsedCandidates.length) throw new Error("candidate ids must be unique case-insensitively");
   const timeoutMs = raw.timeout_ms;
   if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error("timeout_ms must be positive");
+  const validationTimeoutMs = raw.validation_timeout_ms;
+  if (typeof validationTimeoutMs !== "number" || !Number.isFinite(validationTimeoutMs) || validationTimeoutMs <= 0) throw new Error("validation_timeout_ms must be positive");
+  const dependencyPolicy = raw.dependency_policy;
+  if (dependencyPolicy !== "no_changes" && dependencyPolicy !== "allow_changes") throw new Error("dependency_policy must be no_changes or allow_changes");
   const retries = retry.max_launch_transport_retries;
   if (retries !== 1) throw new Error("retry_policy.max_launch_transport_retries must be 1 in Phase 1");
   if (raw.manual_intervention !== "forbidden") throw new Error("manual_intervention must be forbidden in Phase 1");
@@ -99,7 +105,7 @@ export function validateTrial(value: unknown): Trial {
     id: slug(raw.id, "id"), repository: text(raw.repository, "repository"), baselineRef: text(raw.baseline_ref, "baseline_ref"),
     taskContract: text(raw.task_contract, "task_contract"), allowedPaths: strings(raw.allowed_paths, "allowed_paths"),
     forbiddenPaths: strings(raw.forbidden_paths, "forbidden_paths"), validationCommands: commands as string[][],
-    timeoutMs, maxLaunchTransportRetries: retries, manualIntervention: "forbidden",
+    timeoutMs, validationTimeoutMs, dependencyPolicy, maxLaunchTransportRetries: retries, manualIntervention: "forbidden",
     provenance: object(raw.provenance, "provenance"), candidates: parsedCandidates
   };
 }
