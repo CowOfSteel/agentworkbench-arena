@@ -54,7 +54,7 @@ The ten hard gates are explicit in each `telemetry.json`; an unavailable gate ca
 
 Phase 1 contains the fixture, YAML trial schema, Codex and OpenCode native adapters, sequential worktree runner, and raw evidence preservation. Candidate count is configuration data: the first trial has six candidates, while adding a seventh changes only the trial file.
 
-It does not contain GPT-5.6 adjudication, identity masking, HTML reporting, ranking, recommendations, import fallback, plugin orchestration, controlled tool comparisons, parallel execution, additional adapters, automatic routing, or AgentWorkbench v1 integration.
+Phase 3 adds only identity-masked adjudication artifacts and `evaluation.json`. It does not add HTML reporting, `recommendation.yml`, dashboards, import fallback, plugin orchestration, controlled tool comparisons, parallel execution, additional candidate adapters, automatic routing, or AgentWorkbench v1 integration.
 
 See [`docs/COMPETITION-SPRINT-ROADMAP.md`](docs/COMPETITION-SPRINT-ROADMAP.md) for the authoritative roadmap, [`SCOPE.md`](SCOPE.md) for boundaries, [`DECISIONS.md`](DECISIONS.md) for locked decisions, and [`IMPLEMENTATION_STATE.md`](IMPLEMENTATION_STATE.md) for current status.
 

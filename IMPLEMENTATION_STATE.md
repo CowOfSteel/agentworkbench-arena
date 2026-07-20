@@ -2,10 +2,10 @@
 
 ## Current phase
 
-Phase 2 deterministic telemetry is complete. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 3 adjudication has not started.
+Phase 3 masked semantic-adjudication POC is complete. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 2 deterministic evidence remains authoritative. No live Sol adjudication was run during implementation or CI.
 
 Latest implementation commit before this documentation closeout:
-`392dcda24da52ea592b80abbbf0135faffa0b8b8`.
+`e92683fd2a331f8217d2b2433cb9c871944a9039`.
 
 ## Completed work
 
@@ -33,6 +33,9 @@ Latest implementation commit before this documentation closeout:
 - Repaired PR #2 audit findings: failed hard gates now take precedence over unavailable gates; dependency version/source/section and lockfile changes are explicit; native counters no longer invent zero; intervention gates require evidence; and manifest readiness validates deterministic packets.
 - Completed native-evidence intervention semantics: Codex `turn.completed` and OpenCode `step_finish` with `reason: "stop"` establish clean known-zero denial/question counts; truncated and unsupported streams remain unavailable.
 - Repaired the Windows CI test command by enumerating built test files explicitly. GitHub Actions run `29772870316` passed on Windows.
+- Added Phase 3 finalized-packet validation, stable identity masking, bounded allowlisted judge packets, strict schema validation, one structural repair attempt, and complete adjudication/evaluation artifacts.
+- Added a separate read-only, ephemeral Codex Sol judge adapter. Its default is Low reasoning; High is explicit human-only stabilization; higher efforts are rejected. Tests use fake judges only.
+- GitHub Actions run `29776242801` passed on Windows for the Phase 3 implementation.
 
 ## Acceptance criteria status
 
@@ -45,7 +48,8 @@ Latest implementation commit before this documentation closeout:
 - [x] Fresh six-candidate feasibility run completed at `runs/bounded-inventory-luna-2026-07-20T18-47-49-086Z`.
 - [x] Phase 1 feasibility gate passed in `LIVE_MODE`.
 - [x] Phase 2 deterministic normalized/raw telemetry, validation, change facts, hard gates, evidence completeness, and manifest implemented and tested with fake adapters and temporary Git repositories.
-- [x] Phase 2 audit repairs and Windows GitHub Actions verification completed; Phase 3 is ready for a separate audit but has not started.
+- [x] Phase 2 audit repairs and Windows GitHub Actions verification completed; its finalized packets are consumed unchanged by Phase 3.
+- [x] Phase 3 masked semantic-adjudication POC is implemented and tested without model-quota use. Failed or unavailable deterministic gates remain ineligible and cannot be overridden.
 - [x] `IMPORT_COMPARISON_FALLBACK` remains a documented contingency only; it is not the active mode and is not implemented.
 
 ## Commands and evidence verified
@@ -61,6 +65,7 @@ Latest implementation commit before this documentation closeout:
 - GitHub Actions - passed.
 - Codex Luna Low native diagnostic - passed.
 - OpenCode Luna Low native diagnostic - passed.
+- Phase 3 fake-judge packet, masking, repair, no-winner, failure, and dry-run tests - passed; GitHub Actions run `29776242801` passed.
 
 ## Historical evidence
 
@@ -69,4 +74,4 @@ Latest implementation commit before this documentation closeout:
 
 ## Next bounded step
 
-Phase 3 readiness audit only: verify this deterministic factual layer and, if accepted, begin identity-masked GPT adjudication without changing hard-gate precedence. `IMPORT_COMPARISON_FALLBACK` remains a documented contingency if a later native feasibility issue requires it.
+Human-only bounded verification: `npm start -- adjudicate <finalized-phase2-run-directory> --dry-run --reasoning low`. A real Low adjudication is a separate opt-in operation; High is reserved for final stabilization. Phase 4 has not started.
