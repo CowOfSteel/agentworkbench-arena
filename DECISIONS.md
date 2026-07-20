@@ -19,3 +19,5 @@
 17. Candidate configuration hashes use canonical key ordering, sorted declared tool/plugin collections, semantic execution limits, and exclude secrets, candidate IDs, and machine-local executable paths.
 18. `manifest.json` is the canonical Phase 2 run index. Historical `run.json` files remain untouched; newly written compatibility `run.json` is secondary.
 19. Every Phase 2 hard gate is explicit and evidence-backed. Failed or unavailable gates cannot pass and cannot be overridden by later GPT adjudication.
+20. Phase 3 reads finalized Phase 2 packets only. Identity-masked semantic adjudication is subordinate to deterministic hard gates; failed or unavailable candidates are ineligible.
+21. The Phase 3 judge uses `gpt-5.6-sol` in read-only ephemeral mode with no approvals. Low is the default reasoning effort; High requires an explicit human stabilization invocation; higher efforts are prohibited.

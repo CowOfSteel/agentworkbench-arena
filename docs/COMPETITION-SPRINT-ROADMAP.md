@@ -639,7 +639,7 @@ candidates:
 judge:
   adapter: codex-exec
   model: gpt-5.6-sol
-  variant: high
+  variant: low # High is reserved for an explicit final stabilization run.
 ```
 
 Exact model identifiers must be resolved from the locally installed clients rather than assumed by the schema.

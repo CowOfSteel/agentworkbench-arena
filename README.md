@@ -2,7 +2,7 @@
 
 AgentWorkbench Arena is a local calibration tool for comparing complete coding-agent configurations on a user-owned repository. It is a separate contest-period prototype of a future AgentWorkbench configuration-calibration system.
 
-Phase 1 native feasibility is complete with a passing `LIVE_MODE` gate. Phase 2 now adds deterministic telemetry, independent canonical validation, explicit hard gates, and a portable run manifest; it does not adjudicate, rank, or recommend candidates.
+Phase 1 native feasibility is complete with a passing `LIVE_MODE` gate. Phase 2 supplies deterministic telemetry, independent canonical validation, explicit hard gates, and a portable run manifest. Phase 3 can consume only finalized Phase 2 packets for identity-masked semantic adjudication; deterministic hard gates remain authoritative.
 
 ## Quick start
 
@@ -45,6 +45,10 @@ Candidate process duration is measured with a monotonic clock across all attempt
 Trials must declare `validation_timeout_ms` and `dependency_policy`. `no_changes` rejects semantic npm dependency additions/removals; package and lockfile changes remain separate deterministic facts. All validation commands use argument arrays, a bounded timeout, and portable worktree paths.
 
 The ten hard gates are explicit in each `telemetry.json`; an unavailable gate cannot pass, and no future adjudicator may override a failed gate. Artifact completeness is finalized after telemetry generation so its self-check is deterministic.
+
+## Phase 3 adjudication
+
+`arena adjudicate <run-directory> --dry-run` validates a finalized packet, constructs no candidate worktrees, and uses no model quota. A real adjudication uses read-only, ephemeral Codex execution with `approval_policy="never"`; it defaults to `gpt-5.6-sol` at Low reasoning. `--reasoning high` is reserved for an explicit human final-stabilization run; efforts above High are rejected. The judge sees only labels and a bounded allowlisted packet. It writes masked input, execution/repair evidence, and `evaluation.json`, never a Phase 4 report or `recommendation.yml`.
 
 ## Phase boundaries
 
