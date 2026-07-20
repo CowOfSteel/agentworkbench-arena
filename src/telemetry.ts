@@ -12,6 +12,7 @@ export const aggregateGateStatus = (statuses: GateStatus[]): GateStatus => statu
 export interface NativeTelemetry {
   schema_version: string;
   harness: string;
+  stream_complete: boolean;
   recognized_events: Array<Record<string, unknown>>;
   unknown_events: Array<Record<string, unknown>>;
   malformed_lines: Array<{ line: number; raw: string }>;
@@ -32,6 +33,7 @@ export function extractNativeTelemetry(harness: string, raw: string): NativeTele
   let cachedInputTokens: number | undefined;
   let outputTokens: number | undefined;
   let cost: number | undefined;
+  let streamComplete = false;
 
   raw.split(/\r?\n/).forEach((line, index) => {
     if (!line) return;
@@ -43,10 +45,12 @@ export function extractNativeTelemetry(harness: string, raw: string): NativeTele
     const itemType = typeof item?.type === "string" ? item.type : "";
     const supported = harness === "codex" || harness === "opencode";
     const known = supported && (harness === "codex"
-      ? type === "turn.started" || type === "turn.completed" || type.startsWith("item.") || type.includes("error")
-      : type === "step_start" || type === "step_finish" || type === "tool_use" || type === "tool" || type === "text" || type.includes("error"));
+      ? type === "turn.started" || type === "turn.completed" || type.startsWith("item.") || /error|permission|question/.test(type)
+      : type === "step_start" || type === "step_finish" || type === "tool_use" || type === "tool" || type === "text" || /error|permission|question/.test(type));
     (known ? recognized_events : unknown_events).push(event);
     if (!known) return;
+    if (harness === "codex" && type === "turn.completed") streamComplete = true;
+    if (harness === "opencode" && type === "step_finish" && item?.reason === "stop") streamComplete = true;
     const add = (metric: string) => { observed.add(metric); counts[metric] = (counts[metric] ?? 0) + 1; };
     if (type === "turn.started" || type === "step_start") add("turn_count");
     if (itemType === "command_execution" || type === "tool_use" || type === "tool") add("tool_call_count");
@@ -65,13 +69,13 @@ export function extractNativeTelemetry(harness: string, raw: string): NativeTele
   });
   const source = `${harness}-jsonl`;
   const metric = (value: number | undefined) => value === undefined ? unavailable<number>(source) : available(value, source);
-  const count = (name: string) => observed.has(name) ? available(counts[name], source) : unavailable<number>(source);
+  const count = (name: string) => observed.has(name) ? available(counts[name], source) : streamComplete && (name === "permission_denials" || name === "user_questions") ? available(0, source) : unavailable<number>(source);
   const limitations = [
     ...(malformed_lines.length ? [`${malformed_lines.length} malformed JSONL line(s) retained`] : []),
     ...(unknown_events.length ? [`${unknown_events.length} unknown native event(s) retained`] : []),
     ...(raw.trim() ? [] : ["native event stream was empty"])
   ];
-  return { schema_version: telemetrySchemaVersion, harness, recognized_events, unknown_events, malformed_lines, limitations,
+  return { schema_version: telemetrySchemaVersion, harness, stream_complete: streamComplete, recognized_events, unknown_events, malformed_lines, limitations,
     extracted: { turn_count: count("turn_count"), tool_call_count: count("tool_call_count"), command_count: count("command_count"), approval_count: count("approval_count"), permission_denials: count("permission_denials"), user_questions: count("user_questions"), error_count: count("error_count"), input_tokens: metric(inputTokens), cached_input_tokens: metric(cachedInputTokens), output_tokens: metric(outputTokens), provider_reported_cost: cost === undefined ? unavailable<number>(source) : available(cost, source) } };
 }
 

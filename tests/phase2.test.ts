@@ -56,6 +56,26 @@ class OutcomeAdapter implements CandidateAdapter {
   }
 }
 
+class CleanAdapter implements CandidateAdapter {
+  async doctor() { return { adapter: "fake", ok: true }; }
+  async execute(request: CandidateRequest): Promise<CandidateExecution> {
+    const source = join(request.worktree, "fixtures", "bounded-inventory", "src");
+    await mkdir(source, { recursive: true });
+    await writeFile(join(source, "inventory.ts"), "export function inventoryTotal(lines: Array<{ quantity: number; unitPrice: number }>): number { return Math.round(lines.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0) * 100) / 100; }\n");
+    await writeFile(join(request.artifactDirectory, "stdout.log"), '{"type":"turn.started"}\n{"type":"turn.completed"}\n');
+    await writeFile(join(request.artifactDirectory, "stderr.log"), "");
+    return { args: ["fake"], startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:00:00.010Z", durationMs: 10, exitCode: 0, timedOut: false };
+  }
+}
+
+class InterventionAdapter extends CleanAdapter {
+  async execute(request: CandidateRequest): Promise<CandidateExecution> {
+    const execution = await super.execute(request);
+    await writeFile(join(request.artifactDirectory, "stdout.log"), '{"type":"turn.started"}\n{"type":"permission.denied"}\n{"type":"turn.completed"}\n');
+    return execution;
+  }
+}
+
 async function outcomeTelemetry(outcome: ConstructorParameters<typeof OutcomeAdapter>[0], configure?: (value: Trial) => void): Promise<Record<string, unknown>> {
   const temporary = await mkdtemp(join(tmpdir(), `arena-outcome-${outcome}-`));
   try {
@@ -130,6 +150,22 @@ test("native event-derived counters are unavailable without directly observed ev
   assert.equal(extractNativeTelemetry("codex", '{"type":"turn.started"}\n').extracted.turn_count.value, 1);
 });
 
+test("complete native streams establish clean intervention zero only at real terminals", () => {
+  const codex = extractNativeTelemetry("codex", '{"type":"turn.started"}\n{"type":"turn.completed"}\n');
+  assert.equal(codex.stream_complete, true);
+  assert.equal(codex.extracted.permission_denials.value, 0);
+  assert.equal(codex.extracted.user_questions.value, 0);
+  const openCode = extractNativeTelemetry("opencode", '{"type":"step_finish","part":{"reason":"stop"}}\n');
+  assert.equal(openCode.stream_complete, true);
+  assert.equal(openCode.extracted.permission_denials.value, 0);
+  assert.equal(openCode.extracted.user_questions.value, 0);
+  const truncated = extractNativeTelemetry("opencode", '{"type":"step_finish","part":{"reason":"tool-calls"}}\n');
+  assert.equal(truncated.stream_complete, false);
+  assert.equal(truncated.extracted.permission_denials.availability, "unavailable");
+  const denied = extractNativeTelemetry("codex", '{"type":"turn.completed"}\n{"type":"permission.denied"}\n');
+  assert.equal(denied.extracted.permission_denials.value, 1);
+});
+
 test("hard gate aggregation gives failure strict precedence", () => {
   assert.equal(aggregateGateStatus(["passed", "passed"]), "passed");
   assert.equal(aggregateGateStatus(["passed", "unavailable"]), "unavailable");
@@ -141,6 +177,7 @@ test("intervention gate distinguishes pass, failure, and unavailable evidence", 
   const base = { manual_prompt_corrections: 0, manual_file_edits: 0, aborts: 0, permission_denials: available(0), user_questions: available(0) };
   assert.equal(interventionGate("forbidden", base, 1).status, "passed");
   assert.equal(interventionGate("forbidden", { ...base, manual_file_edits: 1 }, 0).status, "failed");
+  assert.equal(interventionGate("forbidden", { ...base, permission_denials: available(1, "codex-jsonl") }, 0).status, "failed");
   assert.equal(interventionGate("forbidden", { ...base, user_questions: unavailable<number>() }, 0).status, "unavailable");
 });
 
@@ -181,5 +218,34 @@ test("Phase 2 run writes canonical artifacts, portable validation, facts, gates,
     assert.equal(validation.commands[0].stderr, "diagnostic");
     assert.equal(manifest.candidates[0].artifact_directory, "candidates/one");
     assert.ok(!JSON.stringify(manifest).includes(source));
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("clean complete candidate passes intervention and all hard gates", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-clean-complete-"));
+  try {
+    const source = await repository(temporary);
+    const fixture = trial(source);
+    fixture.allowedPaths.push("fixtures/bounded-inventory/src");
+    const result = await runTrial(fixture, new Map([["codex-exec", new CleanAdapter()]]), join(temporary, "output"));
+    const telemetry = JSON.parse(await readFile(join(result.directory, "candidates", "one", "telemetry.json"), "utf8"));
+    assert.equal(telemetry.intervention.permission_denials.value, 0);
+    assert.equal(telemetry.intervention.user_questions.value, 0);
+    assert.equal(telemetry.execution.human_intervention_count.value, 0);
+    assert.equal(telemetry.hard_gates.find((gate: { id: string }) => gate.id === "intervention_policy").status, "passed");
+    assert.equal(telemetry.output.hard_gate_status.value, "passed");
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("completed native intervention evidence fails the gate and counts the intervention", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-complete-intervention-"));
+  try {
+    const source = await repository(temporary);
+    const fixture = trial(source);
+    fixture.allowedPaths.push("fixtures/bounded-inventory/src");
+    const result = await runTrial(fixture, new Map([["codex-exec", new InterventionAdapter()]]), join(temporary, "output"));
+    const telemetry = JSON.parse(await readFile(join(result.directory, "candidates", "one", "telemetry.json"), "utf8"));
+    assert.equal(telemetry.execution.human_intervention_count.value, 1);
+    assert.equal(telemetry.hard_gates.find((gate: { id: string }) => gate.id === "intervention_policy").status, "failed");
   } finally { await rm(temporary, { recursive: true, force: true }); }
 });
