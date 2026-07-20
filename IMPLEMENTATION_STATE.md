@@ -2,10 +2,10 @@
 
 ## Current phase
 
-Phase 1 is complete. The native feasibility gate is `PASS` in `LIVE_MODE`; Phase 2 remains unstarted.
+Phase 2 deterministic telemetry is complete. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 3 adjudication has not started.
 
 Latest implementation commit before this documentation closeout:
-`532372d6662bcc10d9b28f61b0c1a943c3c5216a`.
+`e706bbc69cafca6ac426b41acbe06675b1629856`.
 
 ## Completed work
 
@@ -27,6 +27,9 @@ Latest implementation commit before this documentation closeout:
 - Native Codex execution uses explicit executable resolution, the existing authenticated CLI state, `workspace-write`, and `approval_policy="never"`.
 - Native Codex execution uses no strict or ignore flags and no dangerous approval or sandbox bypass.
 - Codex configuration isolation is partial and is recorded honestly: ambient instructions and plugins may be detected, while no candidate claims explicit RTK, Ponytail, plugin, skill, or profile enablement.
+- Added schema-versioned `telemetry.json`, source-native `raw-telemetry.json`, canonical `validation.json`, explicit hard gates, evidence-completeness finalization, deterministic change analysis, and run-level `manifest.json`.
+- Added monotonic duration boundaries for candidate attempts, retry overhead, independent validation, candidate pipeline work, and full-run finalization.
+- Added deterministic configuration hashes and sanitized normalized trial snapshots; no native candidate trial was rerun for Phase 2 implementation.
 
 ## Acceptance criteria status
 
@@ -38,6 +41,7 @@ Latest implementation commit before this documentation closeout:
 - [x] Native diagnostics passed for Codex Luna Low and OpenCode Luna Low.
 - [x] Fresh six-candidate feasibility run completed at `runs/bounded-inventory-luna-2026-07-20T18-47-49-086Z`.
 - [x] Phase 1 feasibility gate passed in `LIVE_MODE`.
+- [x] Phase 2 deterministic normalized/raw telemetry, validation, change facts, hard gates, evidence completeness, and manifest implemented and tested with fake adapters and temporary Git repositories.
 - [x] `IMPORT_COMPARISON_FALLBACK` remains a documented contingency only; it is not the active mode and is not implemented.
 
 ## Commands and evidence verified
@@ -61,4 +65,4 @@ Latest implementation commit before this documentation closeout:
 
 ## Next bounded step
 
-Phase 2: deterministic telemetry and hard gates. Begin only from merged PR #1. `IMPORT_COMPARISON_FALLBACK` remains available as a documented contingency if a later native feasibility issue requires it.
+Phase 3 readiness audit only: verify this deterministic factual layer and, if accepted, begin identity-masked GPT adjudication without changing hard-gate precedence. `IMPORT_COMPARISON_FALLBACK` remains a documented contingency if a later native feasibility issue requires it.
