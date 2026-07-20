@@ -21,10 +21,10 @@ The project uses TypeScript, Node.js, native Git/process capabilities, Node’s 
 
 Codex resolution uses a candidate `adapter_options.codex_executable`, then `ARENA_CODEX_EXECUTABLE`, then a local `.arena/config.json`, and finally `codex` on `PATH`. Copy [`.arena/config.example.json`](.arena/config.example.json) for a local non-secret executable path; local config is ignored by Git.
 
-Arena creates a fresh Codex home for every attempt and requires an inherited `CODEX_ACCESS_TOKEN`; it never copies or records credentials. Before native Codex runs, confirm the token is set without printing it:
+Arena uses the existing Codex CLI environment so normal ChatGPT authentication works. Sign in with `codex login` and choose Sign in with ChatGPT when needed; Arena never copies, prints, or records credentials. `CODEX_ACCESS_TOKEN` is an optional advanced authentication mode only: when already supplied by the shell, Arena passes it through and redacts its value from captured evidence. Do not create, reveal, or paste a token for Arena.
 
 ```powershell
-if (-not $env:CODEX_ACCESS_TOKEN) { throw "Set CODEX_ACCESS_TOKEN in this shell before running Arena." }
+codex login
 ```
 
 ## Locked product direction

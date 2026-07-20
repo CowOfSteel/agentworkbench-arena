@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { parse } from "yaml";
@@ -41,9 +41,11 @@ test("schema validates IDs and native arguments explicitly", async () => {
   assert.deepEqual(codex.slice(0, 3), ["exec", "--json", "--output-last-message"]);
   assert.equal(codex[codex.indexOf("--sandbox") + 1], "workspace-write");
   assert.ok(codex.includes('model_reasoning_effort="low"'));
-  assert.ok(!codex.includes("--ignore-user-config"));
+  assert.ok(codex.includes("--ephemeral"));
+  assert.ok(codex.includes("--ignore-user-config"));
   assert.ok(codex.includes("--ignore-rules"));
-  assert.ok(codex.includes("--strict-config"));
+  assert.ok(!codex.includes("--strict-config"));
+  assert.ok(codex.includes('approval_policy="never"'));
   assert.ok(!codex.includes("--dangerously-bypass-approvals-and-sandbox"));
   const openRequest = { ...request, candidate: trial.candidates[3] };
   const open = openCodeArgs(openRequest);
@@ -224,31 +226,90 @@ test("execution records redact prompts and config values and store the task hash
   } finally { await rm(temporary, { recursive: true, force: true }); }
 });
 
-test("Codex attempts isolate config and keep access tokens out of evidence", { skip: process.platform !== "win32" }, async () => {
-  const temporary = await mkdtemp(join(tmpdir(), "arena-codex-home-"));
+test("Codex attempts inherit existing CLI state and redact optional access tokens", { skip: process.platform !== "win32" }, async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-codex-cli-"));
   const repository = await makeRepository(temporary);
   const command = join(temporary, "codex.cmd");
   const previousToken = process.env.CODEX_ACCESS_TOKEN;
-  process.env.CODEX_ACCESS_TOKEN = "access-token-secret";
+  const previousHome = process.env.CODEX_HOME;
   try {
-    await writeFile(command, "@echo off\r\necho fake-codex\r\n");
+    await writeFile(command, "@echo off\r\nif /I \"%~1\"==\"login\" if /I \"%~2\"==\"status\" exit /b %FAKE_LOGIN_STATUS%\r\nif /I \"%~1\"==\"--version\" (echo fake-codex & exit /b 0)\r\n:args\r\nif \"%~1\"==\"\" goto run\r\nif /I \"%~1\"==\"--output-last-message\" set \"output=%~2\"\r\nshift\r\ngoto args\r\n:run\r\necho home=%CODEX_HOME%\r\necho token=%CODEX_ACCESS_TOKEN%\r\nif not \"%output%\"==\"\" echo token=%CODEX_ACCESS_TOKEN%>\"%output%\"\r\n");
     const candidates = ["one", "two"].map((id) => ({ id, adapter: "codex-exec" as const, harness: "codex", model: "fake", adapterOptions: { codex_executable: command } }));
     const trial = makeTrial(repository, candidates);
     trial.taskContract = "prompt-secret";
-    const output = join(temporary, "output");
+    process.env.CODEX_HOME = join(temporary, "inherited-codex-home");
+    delete process.env.CODEX_ACCESS_TOKEN;
+    const noTokenOutput = join(temporary, "without-token");
+    await runTrial(trial, new Map([["codex-exec", new CodexExecAdapter()]]), noTokenOutput);
+    const noTokenCandidate = join(noTokenOutput, "candidates", "one");
+    assert.equal(JSON.parse(await readFile(join(noTokenCandidate, "execution.json"), "utf8")).failure_classification, null);
+    assert.match(await readFile(join(noTokenCandidate, "stdout.log"), "utf8"), /home=.*inherited-codex-home/);
+
+    process.env.CODEX_ACCESS_TOKEN = "access-token-secret";
+    const output = join(temporary, "with-token");
     await runTrial(trial, new Map([["codex-exec", new CodexExecAdapter()]]), output);
     const candidate = join(output, "candidates", "one");
-    const config = await readFile(join(candidate, "attempts", "attempt-1", "codex-home", "config.toml"), "utf8");
     const provenance = await readFile(join(candidate, "provenance.json"), "utf8");
-    assert.equal(config, 'approval_policy = "never"\nsandbox_mode = "workspace-write"\n');
+    const stdout = await readFile(join(candidate, "stdout.log"), "utf8");
+    const finalResponse = await readFile(join(candidate, "final-response.txt"), "utf8");
     assert.match(provenance, /"source": "trial"/);
-    assert.match(provenance, /<user-home>/);
-    assert.doesNotMatch(provenance, new RegExp(homedir().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+    assert.match(provenance, /"configuration_isolation": "partial"/);
+    assert.match(provenance, /"instructions_detected":/);
+    assert.match(provenance, /"plugins_detected":/);
+    assert.match(stdout, /token=<redacted>/);
+    assert.match(finalResponse, /token=<redacted>/);
     assert.doesNotMatch(provenance, /prompt-secret|access-token-secret/);
-    assert.equal(JSON.parse(await readFile(join(candidate, "execution.json"), "utf8")).artifact_availability["attempts/attempt-1/codex-home/config.toml"], true);
+    assert.doesNotMatch(stdout, /access-token-secret/);
+    assert.doesNotMatch(finalResponse, /access-token-secret/);
   } finally {
     if (previousToken === undefined) delete process.env.CODEX_ACCESS_TOKEN;
     else process.env.CODEX_ACCESS_TOKEN = previousToken;
+    if (previousHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = previousHome;
+    await rm(temporary, { recursive: true, force: true });
+  }
+});
+
+test("Codex doctor reports executable and authentication readiness without secrets", { skip: process.platform !== "win32" }, async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-codex-doctor-"));
+  const command = join(temporary, "codex.cmd");
+  const previousToken = process.env.CODEX_ACCESS_TOKEN;
+  const previousLoginStatus = process.env.FAKE_LOGIN_STATUS;
+  const previousVersionStatus = process.env.FAKE_VERSION_STATUS;
+  const candidate: Candidate = { id: "codex", adapter: "codex-exec", harness: "codex", model: "fake", adapterOptions: { codex_executable: command } };
+  try {
+    await writeFile(command, "@echo off\r\nif /I \"%~1\"==\"--version\" (echo fake-codex & exit /b %FAKE_VERSION_STATUS%)\r\nif /I \"%~1\"==\"login\" if /I \"%~2\"==\"status\" exit /b %FAKE_LOGIN_STATUS%\r\nexit /b 0\r\n");
+    process.env.FAKE_VERSION_STATUS = "0";
+    process.env.FAKE_LOGIN_STATUS = "0";
+    delete process.env.CODEX_ACCESS_TOKEN;
+    const adapter = new CodexExecAdapter();
+    const existing = await adapter.doctor(candidate);
+    assert.equal(existing.ok, true);
+    assert.deepEqual(existing.authentication, { existing_cli_state: "usable", optional_access_token: "absent" });
+
+    process.env.FAKE_LOGIN_STATUS = "1";
+    const unavailable = await adapter.doctor(candidate);
+    assert.equal(unavailable.ok, false);
+    assert.deepEqual(unavailable.authentication, { existing_cli_state: "unavailable", optional_access_token: "absent" });
+
+    process.env.CODEX_ACCESS_TOKEN = "doctor-access-token-secret";
+    const optionalToken = await adapter.doctor(candidate);
+    assert.equal(optionalToken.ok, true);
+    assert.deepEqual(optionalToken.authentication, { existing_cli_state: "unavailable", optional_access_token: "present" });
+    assert.doesNotMatch(JSON.stringify(optionalToken), /doctor-access-token-secret/);
+
+    process.env.FAKE_VERSION_STATUS = "1";
+    const missingVersion = await adapter.doctor(candidate);
+    assert.equal(missingVersion.executable_status, "version_unavailable");
+    const missingExecutable = await adapter.doctor({ ...candidate, adapterOptions: { codex_executable: join(temporary, "missing.cmd") } });
+    assert.equal(missingExecutable.executable_status, "unavailable");
+  } finally {
+    if (previousToken === undefined) delete process.env.CODEX_ACCESS_TOKEN;
+    else process.env.CODEX_ACCESS_TOKEN = previousToken;
+    if (previousLoginStatus === undefined) delete process.env.FAKE_LOGIN_STATUS;
+    else process.env.FAKE_LOGIN_STATUS = previousLoginStatus;
+    if (previousVersionStatus === undefined) delete process.env.FAKE_VERSION_STATUS;
+    else process.env.FAKE_VERSION_STATUS = previousVersionStatus;
     await rm(temporary, { recursive: true, force: true });
   }
 });
