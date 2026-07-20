@@ -5,7 +5,7 @@
 Phase 2 deterministic telemetry is complete. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 3 adjudication has not started.
 
 Latest implementation commit before this documentation closeout:
-`a651ee5ae75309cd1fbd069ddace403aadde74f6`.
+`392dcda24da52ea592b80abbbf0135faffa0b8b8`.
 
 ## Completed work
 
@@ -31,6 +31,7 @@ Latest implementation commit before this documentation closeout:
 - Added monotonic duration boundaries for candidate attempts, retry overhead, independent validation, candidate pipeline work, and full-run finalization.
 - Added deterministic configuration hashes and sanitized normalized trial snapshots; no native candidate trial was rerun for Phase 2 implementation.
 - Repaired PR #2 audit findings: failed hard gates now take precedence over unavailable gates; dependency version/source/section and lockfile changes are explicit; native counters no longer invent zero; intervention gates require evidence; and manifest readiness validates deterministic packets.
+- Completed native-evidence intervention semantics: Codex `turn.completed` and OpenCode `step_finish` with `reason: "stop"` establish clean known-zero denial/question counts; truncated and unsupported streams remain unavailable.
 - Repaired the Windows CI test command by enumerating built test files explicitly. GitHub Actions run `29772870316` passed on Windows.
 
 ## Acceptance criteria status
