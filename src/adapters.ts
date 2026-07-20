@@ -1,5 +1,5 @@
 import { access, appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import { Candidate } from "./trial";
 
 export type FailureKind = "launch" | "transport" | "authentication" | "unsupported_configuration" | "permission" | "candidate_task" | "timeout";
@@ -12,19 +12,31 @@ export interface CandidateExecution {
 }
 export interface CandidateAdapter { doctor(): Promise<DoctorResult>; execute(request: CandidateRequest): Promise<CandidateExecution>; }
 
+export const openCodePermissionConfig = {
+  share: "disabled",
+  permission: {
+    "*": "allow",
+    external_directory: "deny",
+    question: "deny",
+    webfetch: "deny",
+    websearch: "deny"
+  }
+} as const;
+
 export function codexArgs(request: CandidateRequest): string[] {
   const options = request.candidate.adapterOptions ?? {};
   const overrides = (options.config_overrides ?? {}) as Record<string, unknown>;
   const args = ["exec", "--json", "--output-last-message", join(request.artifactDirectory, "final-response.txt"), "--cd", request.worktree,
-    "--model", request.candidate.model, "--sandbox", request.candidate.permissionPolicy ?? "workspace-write", "--ignore-user-config", "--ignore-rules", "--strict-config"];
+    "--model", request.candidate.model, "--sandbox", "workspace-write", "--ignore-user-config", "--ignore-rules", "--strict-config"];
   if (request.candidate.profile) args.push("--profile", request.candidate.profile);
   for (const [key, value] of Object.entries(overrides)) args.push("--config", `${key}=${JSON.stringify(value)}`);
+  args.push("--config", 'approval_policy="never"');
   return [...args, request.prompt];
 }
 
 export function openCodeArgs(request: CandidateRequest): string[] {
   const model = request.candidate.provider ? `${request.candidate.provider}/${request.candidate.model}` : request.candidate.model;
-  const args = ["run", "--pure", "--format", "json", "--dir", request.worktree, "--model", model];
+  const args = ["run", "--pure", "--auto", "--format", "json", "--dir", request.worktree, "--model", model];
   if (request.candidate.attention) args.push("--variant", request.candidate.attention);
   if (request.candidate.agent) args.push("--agent", request.candidate.agent);
   return [...args, request.prompt];
@@ -37,10 +49,22 @@ export const classifyFailure = (message: string, timedOut: boolean, exitCode: nu
   if (/unsupported|unknown model|invalid model|variant/i.test(message)) return "unsupported_configuration";
   if (/permission|approval|denied|sandbox/i.test(message)) return "permission";
   if (isTransport(message)) return "transport";
-  return message || exitCode !== 0 ? "candidate_task" : undefined;
+  return exitCode !== 0 ? "candidate_task" : undefined;
 };
 
-async function run(command: string, args: string[], cwd: string, timeoutMs: number, stdoutPath: string, stderrPath: string): Promise<CandidateExecution> {
+async function terminateProcessTree(child: import("node:child_process").ChildProcess): Promise<void> {
+  if (!child.pid) return;
+  if (process.platform === "win32") {
+    const { execFile } = await import("node:child_process");
+    await new Promise<void>((resolve) => execFile("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true }, () => resolve()));
+    return;
+  }
+  try { process.kill(-child.pid, "SIGTERM"); } catch { child.kill("SIGTERM"); }
+}
+
+export interface RunProcessOptions { env?: NodeJS.ProcessEnv; }
+
+export async function runProcess(command: string, args: string[], cwd: string, timeoutMs: number, stdoutPath: string, stderrPath: string, options: RunProcessOptions = {}): Promise<CandidateExecution> {
   const { spawn } = await import("node:child_process");
   const started = Date.now();
   const startedAt = new Date(started).toISOString();
@@ -49,7 +73,8 @@ async function run(command: string, args: string[], cwd: string, timeoutMs: numb
   return new Promise((resolve) => {
     let launchError: string | undefined;
     let timedOut = false;
-    const child = spawn(command, args, { cwd, shell: false, stdio: ["ignore", "pipe", "pipe"] });
+    let termination: Promise<void> | undefined;
+    const child = spawn(command, args, { cwd, shell: false, detached: process.platform !== "win32", stdio: ["ignore", "pipe", "pipe"], env: options.env });
     let writes = Promise.resolve();
     const write = (path: string, chunk: Buffer) => { writes = writes.then(() => appendFile(path, chunk)); };
     child.stdout?.on("data", (chunk: Buffer) => write(stdoutPath, chunk));
@@ -57,11 +82,11 @@ async function run(command: string, args: string[], cwd: string, timeoutMs: numb
     child.once("error", (error) => { launchError = error.message; });
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill();
-      if (process.platform === "win32" && child.pid) void import("node:child_process").then(({ execFile }) => execFile("taskkill", ["/pid", String(child.pid), "/T", "/F"], () => undefined));
+      termination = terminateProcessTree(child);
     }, timeoutMs);
     child.once("close", async (exitCode) => {
       clearTimeout(timer);
+      await termination;
       await writes;
       const stderr = await readFile(stderrPath, "utf8").catch(() => "");
       const stdout = await readFile(stdoutPath, "utf8").catch(() => "");
@@ -93,7 +118,7 @@ export class CodexExecAdapter implements CandidateAdapter {
   async doctor(): Promise<DoctorResult> { return version("codex"); }
   async execute(request: CandidateRequest): Promise<CandidateExecution> {
     const args = codexArgs(request);
-    return run("codex", args, request.worktree, request.timeoutMs, join(request.artifactDirectory, "stdout.log"), join(request.artifactDirectory, "stderr.log"));
+    return runProcess("codex", args, request.worktree, request.timeoutMs, join(request.artifactDirectory, "stdout.log"), join(request.artifactDirectory, "stderr.log"));
   }
 }
 
@@ -101,14 +126,35 @@ export class OpenCodeRunAdapter implements CandidateAdapter {
   async doctor(): Promise<DoctorResult> { return version(await openCodeCommand(), "opencode"); }
   async execute(request: CandidateRequest): Promise<CandidateExecution> {
     const args = openCodeArgs(request);
-    const execution = await run(await openCodeCommand(), args, request.worktree, request.timeoutMs, join(request.artifactDirectory, "stdout.log"), join(request.artifactDirectory, "stderr.log"));
+    const configPath = join(request.artifactDirectory, "opencode-config.json");
+    const config = JSON.stringify(openCodePermissionConfig, null, 2);
+    await writeFile(configPath, config);
+    const execution = await runProcess(await openCodeCommand(), args, request.worktree, request.timeoutMs, join(request.artifactDirectory, "stdout.log"), join(request.artifactDirectory, "stderr.log"), {
+      env: { ...process.env, OPENCODE_CONFIG: configPath, OPENCODE_CONFIG_CONTENT: config }
+    });
     const raw = await readFile(join(request.artifactDirectory, "stdout.log"), "utf8").catch(() => "");
-    const final = raw.split(/\r?\n/).flatMap((line) => { try { return [JSON.parse(line)]; } catch { return []; } })
-      .filter((event) => event.type === "text" && event.part?.metadata?.openai?.phase === "final_answer" && typeof event.part?.text === "string")
-      .map((event) => event.part.text).at(-1);
-    if (final) { await appendFile(join(request.artifactDirectory, "final-response.txt"), final); execution.finalResponse = final; }
+    const final = extractOpenCodeText(raw);
+    if (final) { await writeFile(join(request.artifactDirectory, "final-response.txt"), final); execution.finalResponse = final; }
     return execution;
   }
 }
 
-export function argumentShape(args: string[]): string[] { return args.map((arg) => basename(arg) === arg ? arg : `<path:${basename(arg)}>`); }
+export function extractOpenCodeText(raw: string): string | undefined {
+  return raw.split(/\r?\n/).flatMap((line) => {
+    try { return [JSON.parse(line) as { type?: string; part?: { type?: string; text?: unknown } }]; } catch { return []; }
+  }).flatMap((event) => event.type === "text" && typeof event.part?.text === "string" ? [event.part.text] : [])
+    .at(-1);
+}
+
+export function argumentShape(args: string[], taskContractHash: string): string[] {
+  const pathFlags = new Set(["--output-last-message", "--cd", "--dir"]);
+  const safeValueFlags = new Set(["--model", "--sandbox", "--profile", "--variant", "--agent"]);
+  return args.map((arg, index) => {
+    if (index === args.length - 1) return `<task-contract:${taskContractHash}>`;
+    if (pathFlags.has(args[index - 1] ?? "")) return "<path:redacted>";
+    if (args[index - 1] === "--config") return "<config:redacted>";
+    if (safeValueFlags.has(args[index - 1] ?? "")) return arg;
+    if (arg.startsWith("--") || ["exec", "run", "json"].includes(arg)) return arg;
+    return "<argument:redacted>";
+  });
+}

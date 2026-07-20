@@ -30,8 +30,10 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<numb
       ["opencode-run", new OpenCodeRunAdapter()]
     ]);
     if (args[0] === "doctor") {
-      console.log(JSON.stringify({ trial_id: trial.id, candidate_count: trial.candidates.length, adapters: await Promise.all([...adapters.values()].map((adapter) => adapter.doctor())) }, null, 2));
-      return 0;
+      const required = new Set<string>(trial.candidates.map((candidate) => candidate.adapter));
+      const checks = await Promise.all([...adapters.entries()].map(async ([id, adapter]) => ({ id, result: await adapter.doctor() })));
+      console.log(JSON.stringify({ trial_id: trial.id, candidate_count: trial.candidates.length, adapters: checks.map(({ result }) => result) }, null, 2));
+      return checks.every(({ id, result }) => !required.has(id) || result.ok) ? 0 : 1;
     }
     const resume = args[2] === "--resume" ? args[3] : undefined;
     if (args[2] && !resume) throw new Error("usage: arena run <trial.yml> [--resume <run-directory>]");
