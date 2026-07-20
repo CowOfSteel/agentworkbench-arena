@@ -2,10 +2,10 @@
 
 ## Current phase
 
-Phase 3 masked semantic-adjudication POC is complete, including final packet-admission, temporary staging, and no-quota preview repairs. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 2 deterministic evidence remains authoritative. No live Sol adjudication was run during implementation or CI.
+Phase 3 masked semantic-adjudication implementation and deterministic tests are complete, including the final packet-admission, temporary-staging, no-quota preview, and identity-policy matcher repairs. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 2 deterministic evidence remains authoritative. No live Sol adjudication has occurred during implementation, CI, or the finalized dry-run.
 
 Latest implementation commit before this documentation closeout:
-`32ea6b0d75ee42c190bdcf9309537bdb9b086757`.
+`d7a0046bf590561df9148d02728e78ff7c851693` (`Ignore executable provenance metadata`).
 
 ## Completed work
 
@@ -39,6 +39,7 @@ Latest implementation commit before this documentation closeout:
 - Repaired the Phase 3 packet audit: new runs now preserve a hash-checked canonical `task-contract.json`; packets reject identity/path leakage, preserve safe relative diff filenames, enforce symmetric limits, and controller-owned evaluation records complete exclusion evidence.
 - Strengthened strict judge response and one-repair handling. Fake-judge tests cover recommendation, tie, inconclusive, no-winner, repairs, timeout/launch failures, masking, and bounded packet evidence. GitHub Actions run `29777857463` passed on Windows.
 - Repaired final Phase 3 admission and execution gaps: task-contract objective hashes are recomputed against both stored and manifest hashes; live judges stage only masked data in a fresh OS-temporary directory that is removed in `finally`; and dry runs atomically refresh only `phase3-preview/`. Fake-judge tests prove isolation, cleanup after success/failure/timeout, no serialized temporary path, and a later real adjudication after preview. GitHub Actions run `29779163879` passed on Windows.
+- Repaired the final identity-policy false positive: strong or high-entropy identities may use substring detection; generic configuration values use contextual or token-aware detection; executable provenance contributes only the executable path, not metadata values such as source labels; and ordinary words such as `allowed`, `build`, and `path` remain valid evidence. GitHub Actions run `29782277331` passed on Windows after this matcher fix.
 
 ## Acceptance criteria status
 
@@ -52,8 +53,8 @@ Latest implementation commit before this documentation closeout:
 - [x] Phase 1 feasibility gate passed in `LIVE_MODE`.
 - [x] Phase 2 deterministic normalized/raw telemetry, validation, change facts, hard gates, evidence completeness, and manifest implemented and tested with fake adapters and temporary Git repositories.
 - [x] Phase 2 audit repairs and Windows GitHub Actions verification completed; its finalized packets are consumed unchanged by Phase 3.
-- [x] Phase 3 masked semantic-adjudication POC is implemented and tested without model-quota use. Failed or unavailable deterministic gates remain ineligible and cannot be overridden.
-- [x] Final Phase 3 gate repairs are implemented and Windows-CI verified. Phase 4 remains unstarted.
+- [x] Phase 3 masked semantic-adjudication implementation and deterministic tests are complete without model-quota use. Failed or unavailable deterministic gates remain ineligible and cannot be overridden.
+- [x] The Phase 3 code gate passed, including the final identity-policy matcher fix; Windows CI passed afterward. Phase 4 remains unstarted.
 - [x] `IMPORT_COMPARISON_FALLBACK` remains a documented contingency only; it is not the active mode and is not implemented.
 
 ## Commands and evidence verified
@@ -72,6 +73,8 @@ Latest implementation commit before this documentation closeout:
 - Phase 3 fake-judge packet, masking, repair, no-winner, failure, and dry-run tests - passed; GitHub Actions run `29776242801` passed.
 - Phase 3 task-contract, identity/path rejection, relative diff, budget, strict-response, evaluation, and repair tests - passed; GitHub Actions run `29777857463` passed.
 - Phase 3 external temporary staging, inspectable dry-run preview, and recomputed task-contract integrity tests - passed; GitHub Actions run `29779163879` passed.
+- Real finalized Phase 2 dry-run passed against `runs/phase3-sol-low-proof-2026-07-20T21-28-41-523Z`: `packet_valid: true`, opaque labels `A` and `B`, Low reasoning, packet size `6047` within the `32192` limit, and preview contents limited to `masked-judge-input.json`, `judge-output-schema.json`, and `dry-run.json`; no Sol invocation occurred.
+- One authenticated Sol Low proof remains as the final manual Phase 3 gate. Sol High remains reserved for final end-to-end stabilization.
 
 ## Historical evidence
 
@@ -80,4 +83,4 @@ Latest implementation commit before this documentation closeout:
 
 ## Next bounded step
 
-Human-only bounded verification: `npm start -- adjudicate <finalized-phase2-run-directory> --dry-run --reasoning low`. A real Low adjudication is a separate opt-in operation; High is reserved for final stabilization. Phase 4 has not started.
+Human-only bounded verification remains: run the authenticated Sol Low proof against the copied finalized run. Sol High is reserved for final end-to-end stabilization, and Phase 4 has not started.

@@ -23,3 +23,4 @@
 21. The Phase 3 judge uses `gpt-5.6-sol` in read-only ephemeral mode with no approvals. Low is the default reasoning effort; High requires an explicit human stabilization invocation; higher efforts are prohibited.
 22. New Phase 2 runs preserve a safe, hash-checked canonical task contract for Phase 3. Older runs remain historical evidence but are not packet-ready without that artifact.
 23. Phase 3 packets are constructed only from allowlisted fields and enforce symmetric evidence budgets; identity or local-path leakage is a deterministic refusal, not a redaction guess.
+24. Strong or high-entropy identities may use substring detection; generic configuration values require contextual or token-aware detection; executable provenance identity uses the executable path only, not metadata values such as provenance source labels; and identity masking must reject actual configuration leakage without rejecting ordinary words such as `allowed`, `build`, or `path`.

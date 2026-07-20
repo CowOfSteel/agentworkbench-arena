@@ -1167,6 +1167,10 @@ The system can produce:
 * a final recommendation;
 * a clear explanation of uncertainty.
 
+### Current repository status
+
+Phase 3 implementation and deterministic tests are complete, and the finalized Phase 2 dry-run is verified without a Sol invocation. One authenticated Sol Low proof remains as the final manual Phase 3 gate; Sol High is reserved for later end-to-end stabilization. Phase 4 has not started.
+
 ---
 
 ## Phase 4: Product report and routing output
