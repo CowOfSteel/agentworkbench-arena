@@ -7,7 +7,7 @@ import { performance } from "node:perf_hooks";
 import { CandidateAdapter, CandidateExecution, argumentShape, openCodePermissionConfig, runProcess } from "./adapters";
 import { FractionalPriceAcceptance, validateFractionalPrice } from "./acceptance";
 import { Candidate, Trial } from "./trial";
-import { available, configurationHash, extractNativeTelemetry, Metric, telemetrySchemaVersion, trialSnapshot, unavailable } from "./telemetry";
+import { aggregateGateStatus, available, configurationHash, extractNativeTelemetry, GateStatus, Metric, telemetrySchemaVersion, trialSnapshot, unavailable } from "./telemetry";
 
 const exec = promisify(execFile);
 const git = async (repository: string, args: string[]): Promise<string> => (await exec("git", args, { cwd: repository, shell: false })).stdout.trim();
@@ -171,28 +171,52 @@ async function resetForRetry(worktree: string, baseline: string, attemptDirector
   if (!verification.clean) throw new Error("disposable worktree did not return to the baseline before retry");
 }
 
-interface DependencyFacts { package_manifest_changed: boolean; lockfile_changed: boolean; added: string[]; removed: string[]; unresolved_comparison: string | null; }
-async function dependencyFacts(worktree: string, baseline: string, status: WorktreeStatus): Promise<DependencyFacts> {
+export interface DependencyRecord { package: string; before: { section: string; value: string } | null; after: { section: string; value: string } | null; }
+export interface DependencyFacts { package_manifest_changed: boolean; dependency_sections_changed: boolean; lockfile_changed: boolean; semantic_dependency_state_changed: boolean; added: DependencyRecord[]; removed: DependencyRecord[]; changed: DependencyRecord[]; unresolved_comparison: string | null; }
+export async function dependencyFacts(worktree: string, baseline: string, status: WorktreeStatus): Promise<DependencyFacts> {
   const packagePath = "package.json";
   const baselinePackage = await gitOutput(worktree, ["show", `${baseline}:${packagePath}`]);
   const candidatePackage = await readFile(join(worktree, packagePath), "utf8").catch(() => undefined);
   const package_manifest_changed = status.tracked_changes.includes(packagePath);
-  const lockfile_changed = status.changed_paths.some((path) => /(^|\/)(package-lock\.json|npm-shrinkwrap\.json)$/.test(path));
-  if (!baselinePackage && candidatePackage === undefined) return { package_manifest_changed, lockfile_changed, added: [], removed: [], unresolved_comparison: "package.json is unavailable at both baseline and candidate" };
+  const lockfile_changed = status.changed_paths.some((path) => /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?)$/.test(path));
+  if (!baselinePackage && candidatePackage === undefined) return { package_manifest_changed, dependency_sections_changed: false, lockfile_changed, semantic_dependency_state_changed: false, added: [], removed: [], changed: [], unresolved_comparison: "package.json is unavailable at both baseline and candidate" };
   try {
-    const dependencies = (text: string | undefined): Map<string, string> => {
+    const dependencies = (text: string | undefined): Map<string, { section: string; value: string }> => {
       const parsed = JSON.parse(text ?? "{}") as Record<string, unknown>;
-      return new Map(["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"].flatMap((section) => Object.entries((parsed[section] as Record<string, string> | undefined) ?? {}).map(([name, version]) => [`${section}:${name}`, String(version)])));
+      return new Map(["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"].flatMap((section) => Object.entries((parsed[section] as Record<string, string> | undefined) ?? {}).map(([name, version]) => [name, { section, value: String(version) }])));
     };
     const before = dependencies(baselinePackage);
     const after = dependencies(candidatePackage);
-    return { package_manifest_changed, lockfile_changed, added: [...after.keys()].filter((key) => !before.has(key)).sort(), removed: [...before.keys()].filter((key) => !after.has(key)).sort(), unresolved_comparison: null };
-  } catch (error) { return { package_manifest_changed, lockfile_changed, added: [], removed: [], unresolved_comparison: error instanceof Error ? error.message : String(error) }; }
+    const added = [...after.keys()].filter((name) => !before.has(name)).sort().map((name) => ({ package: name, before: null, after: after.get(name)! }));
+    const removed = [...before.keys()].filter((name) => !after.has(name)).sort().map((name) => ({ package: name, before: before.get(name)!, after: null }));
+    const changed = [...before.keys()].filter((name) => after.has(name) && (before.get(name)!.section !== after.get(name)!.section || before.get(name)!.value !== after.get(name)!.value)).sort().map((name) => ({ package: name, before: before.get(name)!, after: after.get(name)! }));
+    const dependency_sections_changed = changed.some((item) => item.before!.section !== item.after!.section) || package_manifest_changed && (added.length > 0 || removed.length > 0 || changed.length > 0);
+    return { package_manifest_changed, dependency_sections_changed, lockfile_changed, semantic_dependency_state_changed: added.length > 0 || removed.length > 0 || changed.length > 0, added, removed, changed, unresolved_comparison: null };
+  } catch (error) { return { package_manifest_changed, dependency_sections_changed: false, lockfile_changed, semantic_dependency_state_changed: false, added: [], removed: [], changed: [], unresolved_comparison: error instanceof Error ? error.message : String(error) }; }
 }
 
-type GateStatus = "passed" | "failed" | "unavailable";
 interface Gate { id: string; status: GateStatus; reason: string; evidence_references: string[]; observed_values: Record<string, unknown>; }
 interface Artifact { path: string; status: "present" | "missing" | "unavailable" | "not_applicable"; reason?: string; }
+export interface InterventionFacts { manual_prompt_corrections: number; manual_file_edits: number; aborts: number; permission_denials: Metric<number>; user_questions: Metric<number>; }
+export function interventionGate(policy: Trial["manualIntervention"], facts: InterventionFacts, retryCount: number): Gate {
+  const observed_values = { ...facts, transport_retries: retryCount };
+  if (policy !== "forbidden") return { id: "intervention_policy", status: "unavailable", reason: "unsupported intervention policy", observed_values, evidence_references: ["provenance.json", "raw-events.jsonl"] };
+  if (facts.manual_prompt_corrections > 0 || facts.manual_file_edits > 0 || facts.aborts > 0 || facts.permission_denials.value !== null && facts.permission_denials.value > 0 || facts.user_questions.value !== null && facts.user_questions.value > 0) return { id: "intervention_policy", status: "failed", reason: "prohibited intervention was observed", observed_values, evidence_references: ["provenance.json", "raw-events.jsonl"] };
+  if (facts.permission_denials.availability === "unavailable" || facts.user_questions.availability === "unavailable") return { id: "intervention_policy", status: "unavailable", reason: "native intervention evidence is unavailable", observed_values, evidence_references: ["provenance.json", "raw-events.jsonl"] };
+  return { id: "intervention_policy", status: "passed", reason: "no prohibited intervention was observed", observed_values, evidence_references: ["provenance.json", "raw-events.jsonl"] };
+}
+const portableRelative = (value: unknown): value is string => typeof value === "string" && value.length > 0 && !/^(?:[A-Za-z]:)?[\\/]/.test(value) && !value.split(/[\\/]/).includes("..");
+export function phase3PacketReady(packet: { telemetry: unknown; validation: unknown; artifactDirectory: unknown }): boolean {
+  const telemetry = packet.telemetry as Record<string, unknown> | null;
+  const validation = packet.validation as Record<string, unknown> | null;
+  const provenance = telemetry?.provenance as Record<string, unknown> | undefined;
+  const evidence = telemetry?.evidence_completeness as Record<string, unknown> | undefined;
+  return Boolean(telemetry && validation && telemetry.finalization_status === "complete" && Array.isArray(telemetry.hard_gates) && telemetry.hard_gates.length > 0 && evidence?.status === "complete" && Array.isArray(evidence.artifacts) && Array.isArray(validation.commands) && provenance?.task_contract_hash && provenance.configuration_hash && portableRelative(packet.artifactDirectory));
+}
+async function candidatePacketReady(directory: string, relativeDirectory: string): Promise<boolean> {
+  const [telemetry, validation] = await Promise.all([readFile(join(directory, "telemetry.json"), "utf8").then(JSON.parse).catch(() => null), readFile(join(directory, "validation.json"), "utf8").then(JSON.parse).catch(() => null)]);
+  return phase3PacketReady({ telemetry, validation, artifactDirectory: relativeDirectory });
+}
 
 async function artifactInventory(directory: string, attempts: CandidateAttemptResult[], execution: CandidateExecution): Promise<Artifact[]> {
   const names = ["provenance.json", "raw-events.jsonl", "raw-telemetry.json", "telemetry.json", "stdout.log", "stderr.log", "final-response.txt", "candidate.diff", "validation.json", "pre-validation-status.json", "post-validation-status.json", "validation-side-effects.diff"];
@@ -201,10 +225,10 @@ async function artifactInventory(directory: string, attempts: CandidateAttemptRe
   return artifacts;
 }
 
-function gatesFor(input: { validation: ValidationResult[]; forbidden: string[]; dependencies: DependencyFacts; recoverable: boolean; changed: boolean; execution: CandidateExecution; artifacts: Artifact[]; acceptance?: FractionalPriceAcceptance; retryCount: number; }): Gate[] {
+function gatesFor(input: { trial: Trial; validation: ValidationResult[]; forbidden: string[]; dependencies: DependencyFacts; recoverable: boolean; changed: boolean; execution: CandidateExecution; artifacts: Artifact[]; acceptance?: FractionalPriceAcceptance; retryCount: number; intervention: InterventionFacts; }): Gate[] {
   const validationComplete = input.validation.length > 0 && input.validation.every((item) => item.started_at && item.completed_at);
   const validationPassed = validationComplete && input.validation.every((item) => item.status === "passed");
-  const dependency = input.dependencies.unresolved_comparison ? "unavailable" : input.dependencies.added.length || input.dependencies.removed.length ? "failed" : "passed";
+  const dependency = input.trial.dependencyPolicy === "allow_changes" ? "passed" : input.dependencies.lockfile_changed || input.dependencies.semantic_dependency_state_changed ? "failed" : input.dependencies.unresolved_comparison ? "unavailable" : "passed";
   const evidence = input.artifacts.every((item) => item.status === "present" || item.status === "not_applicable") ? "passed" : "failed";
   const acceptance = !input.acceptance || input.acceptance.status === "not_applicable" ? "unavailable" : input.acceptance.status;
   const make = (id: string, status: GateStatus, reason: string, observed_values: Record<string, unknown>, evidence_references: string[]): Gate => ({ id, status, reason, observed_values, evidence_references });
@@ -217,7 +241,7 @@ function gatesFor(input: { validation: ValidationResult[]; forbidden: string[]; 
     make("nonempty_candidate_result", input.changed ? "passed" : "failed", input.changed ? "candidate produced a pre-validation change" : "candidate produced no pre-validation change", { changed: input.changed }, ["candidate.diff"]),
     make("process_timeout", input.execution.timedOut ? "failed" : "passed", input.execution.timedOut ? "candidate process timed out" : "candidate process did not time out", { timeout: input.execution.timedOut }, ["execution.json"]),
     make("required_evidence_complete", evidence, evidence === "passed" ? "required evidence inventory is complete" : "required evidence inventory is incomplete", { artifacts: input.artifacts }, ["telemetry.json"]),
-    make("intervention_policy", "passed", "no Arena-originated intervention occurred", { manual_prompt_corrections: 0, manual_file_edits: 0, aborts: 0, transport_retries: input.retryCount }, ["provenance.json", "raw-events.jsonl"]),
+    interventionGate(input.trial.manualIntervention, input.intervention, input.retryCount),
     make("acceptance_validator", acceptance, acceptance === "passed" ? "acceptance validator passed" : acceptance === "unavailable" ? "acceptance validator is not applicable" : "acceptance validator failed", { status: input.acceptance?.status ?? "not_applicable" }, ["acceptance.json"])
   ];
 }
@@ -286,16 +310,17 @@ async function candidateRun(trial: Trial, candidate: Candidate, repository: stri
   await writeFile(join(artifactDirectory, "raw-telemetry.json"), JSON.stringify(rawTelemetry, null, 2));
   await writeFile(join(artifactDirectory, "telemetry.json"), JSON.stringify({ schema_version: telemetrySchemaVersion, finalization_status: "pending" }, null, 2));
   const artifacts = await artifactInventory(artifactDirectory, attempts, execution);
-  const gates = gatesFor({ validation, forbidden: forbiddenChanges, dependencies: trial.dependencyPolicy === "allow_changes" ? { ...dependencies, added: [], removed: [], unresolved_comparison: null } : dependencies, recoverable, changed: preValidation.changed_paths.length > 0, execution, artifacts, acceptance, retryCount: attempts.length - 1 });
-  const hardGateStatus: GateStatus = gates.every((gate) => gate.status === "passed") ? "passed" : gates.some((gate) => gate.status === "unavailable") ? "unavailable" : "failed";
   const native = rawTelemetry.extracted;
+  const intervention = { manual_prompt_corrections: 0, manual_file_edits: 0, aborts: 0, permission_denials: execution.failureKind === "permission" ? available(1) : native.permission_denials as Metric<number>, user_questions: native.user_questions as Metric<number> };
+  const gates = gatesFor({ trial, validation, forbidden: forbiddenChanges, dependencies, recoverable, changed: preValidation.changed_paths.length > 0, execution, artifacts, acceptance, retryCount: attempts.length - 1, intervention });
+  const hardGateStatus = aggregateGateStatus(gates.map((gate) => gate.status));
   const telemetry = {
     schema_version: telemetrySchemaVersion,
     finalization_status: "complete",
     provenance: { trial_id: trial.id, run_id: basename(runDirectory), candidate_id: candidate.id, task_contract_hash: hash, baseline_commit: baseline, adapter: candidate.adapter, harness: candidate.harness, provider: candidate.provider ?? null, model: candidate.model, attention: candidate.attention ?? null, agent: candidate.agent ?? null, profile: candidate.profile ?? null, configuration_hash: configurationHash(candidate, trial), started_at: attempts[0].execution.startedAt, completed_at: execution.completedAt },
     execution: { status: execution.failureKind ?? (execution.exitCode === 0 ? "completed" : "failed"), wall_clock_ms: available(attempts.reduce((total, item) => total + item.execution.durationMs, 0)), attempt_execution_ms: available(execution.durationMs), retry_overhead_ms: available(Math.round(retryResetMs + attempts.slice(0, -1).reduce((total, item) => total + item.execution.durationMs, 0))), validation_wall_clock_ms: available(validationRun.wallClockMs), total_pipeline_ms: available(Math.round(performance.now() - pipelineStarted)), process_exit_code: execution.exitCode === null ? unavailable<number>() : available(execution.exitCode), process_timeout: available(execution.timedOut), turn_count: native.turn_count, tool_call_count: native.tool_call_count, command_count: native.command_count, retry_count: available(attempts.length - 1), approval_count: native.approval_count, human_intervention_count: available(0), error_count: native.error_count },
     usage: { input_tokens: native.input_tokens, cached_input_tokens: native.cached_input_tokens, uncached_input_tokens: unavailable<number>(), output_tokens: native.output_tokens, provider_reported_cost: native.provider_reported_cost, provider_reported_currency: unavailable<string>(), estimated_cost: unavailable<number>(), estimated_cost_currency: unavailable<string>(), subscription_consumption: unavailable<string>(), quota_percent_before: unavailable<number>(), quota_percent_after: unavailable<number>(), usage_source: available(`${candidate.harness}-jsonl`, "native") },
-    intervention: { permission_requests: native.approval_count, permission_denials: available(execution.failureKind === "permission" ? 1 : 0), user_questions: native.user_questions, manual_prompt_corrections: available(0), manual_file_edits: available(0), aborts: available(0), transport_retries: available(attempts.length - 1) },
+    intervention: { permission_requests: native.approval_count, permission_denials: intervention.permission_denials, user_questions: intervention.user_questions, manual_prompt_corrections: available(0), manual_file_edits: available(0), aborts: available(0), transport_retries: available(attempts.length - 1) },
     output: { files_changed: available(preValidation.changed_paths.length), lines_added: available(preValidation.lines_added), lines_deleted: available(preValidation.lines_deleted), dependencies_added: dependencies.unresolved_comparison ? unavailable<string[]>() : available(dependencies.added), dependencies_removed: dependencies.unresolved_comparison ? unavailable<string[]>() : available(dependencies.removed), untracked_files: available(preValidation.untracked_paths), validation_pass_count: available(validation.filter((item) => item.status === "passed").length), validation_fail_count: available(validation.filter((item) => item.status === "failed").length), hard_gate_status: available(hardGateStatus) },
     change_analysis: { pre_validation: preValidation, validation_side_effects: { present: sideEffects.length > 0, forbidden_paths: validationForbiddenChanges }, dependencies },
     hard_gates: gates,
@@ -322,7 +347,8 @@ export async function runTrial(trial: Trial, adapters: Map<string, CandidateAdap
     candidates.push(await candidateRun(trial, candidate, repository, baseline, directory, adapter));
   }
   const completedAt = new Date().toISOString();
-  const manifest = { schema_version: telemetrySchemaVersion, run_id: basename(directory), trial_id: trial.id, comparison_mode: "practical-configuration-comparison", run_status: "completed", started_at: startedAt, completed_at: completedAt, total_pipeline_ms: Math.round(performance.now() - started), arena_git_commit: await git(process.cwd(), ["rev-parse", "HEAD"]).catch(() => null), baseline_commit: baseline, task_contract_hash: taskContractHash(trial.taskContract), normalized_trial_snapshot_hash: snapshotHash, candidate_count: trial.candidates.length, candidates: candidates.map((result) => ({ candidate_id: result.candidateId, configuration_hash: configurationHash(trial.candidates.find((candidate) => candidate.id === result.candidateId)!, trial), artifact_directory: `candidates/${result.candidateId}`, completion_status: result.execution.failureKind ?? (result.execution.exitCode === 0 ? "completed" : "failed"), hard_gate_status: result.hardGateStatus ?? "unavailable", evidence_completeness: `candidates/${result.candidateId}/telemetry.json` })), manifest_finalization_status: "complete", phase_3_readiness: candidates.every((candidate) => candidate.hardGateStatus !== undefined) ? "ready_for_audit" : "not_ready" };
+  const candidatePackets = await Promise.all(candidates.map(async (result) => ({ result, artifactDirectory: `candidates/${result.candidateId}`, ready: await candidatePacketReady(result.directory, `candidates/${result.candidateId}`) })));
+  const manifest = { schema_version: telemetrySchemaVersion, run_id: basename(directory), trial_id: trial.id, comparison_mode: "practical-configuration-comparison", run_status: "completed", started_at: startedAt, completed_at: completedAt, total_pipeline_ms: Math.round(performance.now() - started), arena_git_commit: await git(process.cwd(), ["rev-parse", "HEAD"]).catch(() => null), baseline_commit: baseline, task_contract_hash: taskContractHash(trial.taskContract), normalized_trial_snapshot_hash: snapshotHash, candidate_count: trial.candidates.length, candidates: candidatePackets.map(({ result, artifactDirectory, ready }) => ({ candidate_id: result.candidateId, configuration_hash: configurationHash(trial.candidates.find((candidate) => candidate.id === result.candidateId)!, trial), artifact_directory: artifactDirectory, completion_status: result.execution.failureKind ?? (result.execution.exitCode === 0 ? "completed" : "failed"), hard_gate_status: result.hardGateStatus ?? "unavailable", evidence_completeness: `${artifactDirectory}/telemetry.json`, deterministic_packet_ready: ready })), manifest_finalization_status: "complete", phase_3_readiness: candidatePackets.every((candidate) => candidate.ready) ? "ready_for_audit" : "not_ready" };
   await Promise.all([
     writeFile(join(directory, "manifest.json"), JSON.stringify(manifest, null, 2)),
     writeFile(join(directory, "run.json"), JSON.stringify({ compatibility: "secondary; use manifest.json", trial_id: trial.id, baseline, candidate_count: trial.candidates.length, task_contract_hash: taskContractHash(trial.taskContract), candidates: candidates.map((candidate) => ({ id: candidate.candidateId, directory: basename(candidate.directory) })) }, null, 2))

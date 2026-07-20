@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { CandidateAdapter, CandidateExecution, CandidateRequest } from "../src/adapters";
-import { runTrial } from "../src/runner";
+import { interventionGate, phase3PacketReady, runTrial } from "../src/runner";
 import { Candidate, Trial } from "../src/trial";
-import { configurationHash, extractNativeTelemetry } from "../src/telemetry";
+import { aggregateGateStatus, available, configurationHash, extractNativeTelemetry, unavailable } from "../src/telemetry";
 
 const git = (cwd: string, args: string[]) => execFileSync("git", args, { cwd, encoding: "utf8" });
 
@@ -36,6 +36,34 @@ class Adapter implements CandidateAdapter {
   }
 }
 
+class MutationAdapter extends Adapter {
+  constructor(private readonly mutate: (request: CandidateRequest) => Promise<void>) { super(); }
+  async execute(request: CandidateRequest): Promise<CandidateExecution> { await this.mutate(request); return super.execute(request); }
+}
+
+test("dependency facts distinguish additions, removals, versions, section movement, lockfiles, malformed manifests, and no change", async () => {
+  const cases: Array<[string, (request: CandidateRequest) => Promise<void>, string, string]> = [
+    ["addition", async (request) => writeFile(join(request.worktree, "package.json"), '{"dependencies":{"before":"1.0.0","added":"1.0.0"}}'), "added", "failed"],
+    ["removal", async (request) => writeFile(join(request.worktree, "package.json"), '{"dependencies":{}}'), "removed", "failed"],
+    ["version", async (request) => writeFile(join(request.worktree, "package.json"), '{"dependencies":{"before":"2.0.0"}}'), "changed", "failed"],
+    ["movement", async (request) => writeFile(join(request.worktree, "package.json"), '{"devDependencies":{"before":"1.0.0"}}'), "changed", "failed"],
+    ["lockfile", async (request) => writeFile(join(request.worktree, "package-lock.json"), "{}\n"), "lockfile_changed", "failed"],
+    ["malformed", async (request) => writeFile(join(request.worktree, "package.json"), "{"), "unresolved_comparison", "unavailable"],
+    ["unchanged", async () => {}, "semantic_dependency_state_changed", "passed"]
+  ];
+  for (const [name, mutate, fact, gateStatus] of cases) {
+    const temporary = await mkdtemp(join(tmpdir(), `arena-dependencies-${name}-`));
+    try {
+      const source = await repository(temporary);
+      const result = await runTrial(trial(source), new Map([["codex-exec", new MutationAdapter(mutate)]]), join(temporary, "output"));
+      const telemetry = JSON.parse(await readFile(join(result.directory, "candidates", "one", "telemetry.json"), "utf8"));
+      if (name === "unchanged") assert.equal(telemetry.change_analysis.dependencies[fact], false);
+      else assert.ok(telemetry.change_analysis.dependencies[fact] === true || telemetry.change_analysis.dependencies[fact].length > 0 || telemetry.change_analysis.dependencies[fact]);
+      assert.equal(telemetry.hard_gates.find((gate: { id: string }) => gate.id === "dependency_policy").status, gateStatus);
+    } finally { await rm(temporary, { recursive: true, force: true }); }
+  }
+});
+
 test("native extraction preserves unknown and malformed evidence without inventing metrics", () => {
   const codex = extractNativeTelemetry("codex", '{"type":"turn.started"}\n{"type":"item.completed","item":{"type":"command_execution"}}\n???\n{"type":"future.event"}\n');
   assert.equal(codex.extracted.turn_count.value, 1);
@@ -46,6 +74,35 @@ test("native extraction preserves unknown and malformed evidence without inventi
   const opencode = extractNativeTelemetry("opencode", '{"type":"step_start"}\n{"type":"tool_use"}\n');
   assert.equal(opencode.extracted.turn_count.value, 1);
   assert.equal(opencode.extracted.tool_call_count.value, 1);
+});
+
+test("native event-derived counters are unavailable without directly observed events", () => {
+  for (const [harness, raw] of [["codex", ""], ["codex", "bad"], ["codex", '{"type":"future.event"}\n'], ["other", '{"type":"turn.started"}\n']] as const) {
+    const telemetry = extractNativeTelemetry(harness, raw);
+    for (const metric of ["turn_count", "tool_call_count", "command_count", "approval_count", "permission_denials", "user_questions", "error_count"]) assert.equal(telemetry.extracted[metric].availability, "unavailable");
+  }
+  assert.equal(extractNativeTelemetry("codex", '{"type":"turn.started"}\n').extracted.turn_count.value, 1);
+});
+
+test("hard gate aggregation gives failure strict precedence", () => {
+  assert.equal(aggregateGateStatus(["passed", "passed"]), "passed");
+  assert.equal(aggregateGateStatus(["passed", "unavailable"]), "unavailable");
+  assert.equal(aggregateGateStatus(["passed", "failed"]), "failed");
+  assert.equal(aggregateGateStatus(["failed", "unavailable"]), "failed");
+});
+
+test("intervention gate distinguishes pass, failure, and unavailable evidence", () => {
+  const base = { manual_prompt_corrections: 0, manual_file_edits: 0, aborts: 0, permission_denials: available(0), user_questions: available(0) };
+  assert.equal(interventionGate("forbidden", base, 1).status, "passed");
+  assert.equal(interventionGate("forbidden", { ...base, manual_file_edits: 1 }, 0).status, "failed");
+  assert.equal(interventionGate("forbidden", { ...base, user_questions: unavailable<number>() }, 0).status, "unavailable");
+});
+
+test("phase three packet readiness validates evidence rather than hard-gate outcome", () => {
+  const ready = { telemetry: { finalization_status: "complete", hard_gates: [{ status: "failed" }], evidence_completeness: { status: "complete", artifacts: [] }, provenance: { task_contract_hash: "task", configuration_hash: "config" } }, validation: { commands: [] }, artifactDirectory: "candidates/one" };
+  assert.equal(phase3PacketReady(ready), true);
+  assert.equal(phase3PacketReady({ ...ready, telemetry: { ...ready.telemetry, finalization_status: "pending" } }), false);
+  assert.equal(phase3PacketReady({ ...ready, artifactDirectory: "C:/private" }), false);
 });
 
 test("configuration hashes are stable for equivalent tool order and change with relevant limits", () => {

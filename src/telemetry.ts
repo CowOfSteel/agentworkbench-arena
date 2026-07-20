@@ -3,9 +3,11 @@ import { Candidate, Trial } from "./trial";
 
 export const telemetrySchemaVersion = "2.0";
 export type Availability = "available" | "unavailable";
+export type GateStatus = "passed" | "failed" | "unavailable";
 export interface Metric<T> { value: T | null; availability: Availability; source: string; }
 export const available = <T>(value: T, source = "arena"): Metric<T> => ({ value, availability: "available", source });
 export const unavailable = <T>(source = "unavailable"): Metric<T> => ({ value: null, availability: "unavailable", source });
+export const aggregateGateStatus = (statuses: GateStatus[]): GateStatus => statuses.includes("failed") ? "failed" : statuses.includes("unavailable") ? "unavailable" : "passed";
 
 export interface NativeTelemetry {
   schema_version: string;
@@ -24,12 +26,8 @@ export function extractNativeTelemetry(harness: string, raw: string): NativeTele
   const recognized_events: Array<Record<string, unknown>> = [];
   const unknown_events: Array<Record<string, unknown>> = [];
   const malformed_lines: Array<{ line: number; raw: string }> = [];
-  let turns = 0;
-  let tools = 0;
-  let commands = 0;
-  let approvals = 0;
-  let questions = 0;
-  let errors = 0;
+  const counts: Record<string, number> = {};
+  const observed = new Set<string>();
   let inputTokens: number | undefined;
   let cachedInputTokens: number | undefined;
   let outputTokens: number | undefined;
@@ -43,16 +41,20 @@ export function extractNativeTelemetry(harness: string, raw: string): NativeTele
     const type = typeof event.type === "string" ? event.type : "";
     const item = asObject(event.item) ?? asObject(event.part);
     const itemType = typeof item?.type === "string" ? item.type : "";
-    const known = harness === "codex"
+    const supported = harness === "codex" || harness === "opencode";
+    const known = supported && (harness === "codex"
       ? type === "turn.started" || type === "turn.completed" || type.startsWith("item.") || type.includes("error")
-      : type === "step_start" || type === "step_finish" || type === "tool_use" || type === "tool" || type === "text" || type.includes("error");
+      : type === "step_start" || type === "step_finish" || type === "tool_use" || type === "tool" || type === "text" || type.includes("error"));
     (known ? recognized_events : unknown_events).push(event);
     if (!known) return;
-    if (type === "turn.started" || type === "step_start") turns += 1;
-    if (itemType === "command_execution" || type === "tool_use" || type === "tool") { tools += 1; if (itemType === "command_execution" || type === "tool_use") commands += 1; }
-    if (/approval|permission/i.test(type) || /approval|permission/i.test(itemType)) approvals += 1;
-    if (/question/i.test(type) || /question/i.test(itemType)) questions += 1;
-    if (/error|failed/i.test(type)) errors += 1;
+    const add = (metric: string) => { observed.add(metric); counts[metric] = (counts[metric] ?? 0) + 1; };
+    if (type === "turn.started" || type === "step_start") add("turn_count");
+    if (itemType === "command_execution" || type === "tool_use" || type === "tool") add("tool_call_count");
+    if (itemType === "command_execution" || type === "tool_use") add("command_count");
+    if (/approval|permission/i.test(type) || /approval|permission/i.test(itemType)) add("approval_count");
+    if (/denied/i.test(type) || /denied/i.test(itemType)) add("permission_denials");
+    if (/question/i.test(type) || /question/i.test(itemType)) add("user_questions");
+    if (/error|failed/i.test(type)) add("error_count");
     const tokens = asObject(event.tokens) ?? asObject(item?.tokens);
     if (tokens) {
       inputTokens = number(tokens.input) ?? number(tokens.input_tokens) ?? inputTokens;
@@ -63,13 +65,14 @@ export function extractNativeTelemetry(harness: string, raw: string): NativeTele
   });
   const source = `${harness}-jsonl`;
   const metric = (value: number | undefined) => value === undefined ? unavailable<number>(source) : available(value, source);
+  const count = (name: string) => observed.has(name) ? available(counts[name], source) : unavailable<number>(source);
   const limitations = [
     ...(malformed_lines.length ? [`${malformed_lines.length} malformed JSONL line(s) retained`] : []),
     ...(unknown_events.length ? [`${unknown_events.length} unknown native event(s) retained`] : []),
     ...(raw.trim() ? [] : ["native event stream was empty"])
   ];
   return { schema_version: telemetrySchemaVersion, harness, recognized_events, unknown_events, malformed_lines, limitations,
-    extracted: { turn_count: available(turns, source), tool_call_count: available(tools, source), command_count: available(commands, source), approval_count: available(approvals, source), user_questions: available(questions, source), error_count: available(errors, source), input_tokens: metric(inputTokens), cached_input_tokens: metric(cachedInputTokens), output_tokens: metric(outputTokens), provider_reported_cost: cost === undefined ? unavailable<number>(source) : available(cost, source) } };
+    extracted: { turn_count: count("turn_count"), tool_call_count: count("tool_call_count"), command_count: count("command_count"), approval_count: count("approval_count"), permission_denials: count("permission_denials"), user_questions: count("user_questions"), error_count: count("error_count"), input_tokens: metric(inputTokens), cached_input_tokens: metric(cachedInputTokens), output_tokens: metric(outputTokens), provider_reported_cost: cost === undefined ? unavailable<number>(source) : available(cost, source) } };
 }
 
 function canonical(value: unknown): unknown {
