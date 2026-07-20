@@ -5,7 +5,7 @@
 Phase 2 deterministic telemetry is complete. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 3 adjudication has not started.
 
 Latest implementation commit before this documentation closeout:
-`e706bbc69cafca6ac426b41acbe06675b1629856`.
+`a651ee5ae75309cd1fbd069ddace403aadde74f6`.
 
 ## Completed work
 
@@ -30,6 +30,8 @@ Latest implementation commit before this documentation closeout:
 - Added schema-versioned `telemetry.json`, source-native `raw-telemetry.json`, canonical `validation.json`, explicit hard gates, evidence-completeness finalization, deterministic change analysis, and run-level `manifest.json`.
 - Added monotonic duration boundaries for candidate attempts, retry overhead, independent validation, candidate pipeline work, and full-run finalization.
 - Added deterministic configuration hashes and sanitized normalized trial snapshots; no native candidate trial was rerun for Phase 2 implementation.
+- Repaired PR #2 audit findings: failed hard gates now take precedence over unavailable gates; dependency version/source/section and lockfile changes are explicit; native counters no longer invent zero; intervention gates require evidence; and manifest readiness validates deterministic packets.
+- Repaired the Windows CI test command by enumerating built test files explicitly. GitHub Actions run `29772870316` passed on Windows.
 
 ## Acceptance criteria status
 
@@ -42,6 +44,7 @@ Latest implementation commit before this documentation closeout:
 - [x] Fresh six-candidate feasibility run completed at `runs/bounded-inventory-luna-2026-07-20T18-47-49-086Z`.
 - [x] Phase 1 feasibility gate passed in `LIVE_MODE`.
 - [x] Phase 2 deterministic normalized/raw telemetry, validation, change facts, hard gates, evidence completeness, and manifest implemented and tested with fake adapters and temporary Git repositories.
+- [x] Phase 2 audit repairs and Windows GitHub Actions verification completed; Phase 3 is ready for a separate audit but has not started.
 - [x] `IMPORT_COMPARISON_FALLBACK` remains a documented contingency only; it is not the active mode and is not implemented.
 
 ## Commands and evidence verified
