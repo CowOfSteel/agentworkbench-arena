@@ -41,6 +41,33 @@ class MutationAdapter extends Adapter {
   async execute(request: CandidateRequest): Promise<CandidateExecution> { await this.mutate(request); return super.execute(request); }
 }
 
+class OutcomeAdapter implements CandidateAdapter {
+  constructor(private readonly outcome: "empty" | "timeout" | "launch" | "acceptance") {}
+  async doctor() { return { adapter: "fake", ok: true }; }
+  async execute(request: CandidateRequest): Promise<CandidateExecution> {
+    if (this.outcome === "acceptance") {
+      const source = join(request.worktree, "fixtures", "bounded-inventory", "src");
+      await mkdir(source, { recursive: true });
+      await writeFile(join(source, "inventory.ts"), "export function inventoryTotal(): number { return 0; }\n");
+    }
+    await writeFile(join(request.artifactDirectory, "stdout.log"), "");
+    await writeFile(join(request.artifactDirectory, "stderr.log"), "");
+    return { args: ["fake"], startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:00:00.010Z", durationMs: 10, exitCode: this.outcome === "launch" ? null : 0, timedOut: this.outcome === "timeout", failureKind: this.outcome === "launch" ? "launch" : this.outcome === "timeout" ? "timeout" : undefined, launchError: this.outcome === "launch" ? "launch failed" : undefined };
+  }
+}
+
+async function outcomeTelemetry(outcome: ConstructorParameters<typeof OutcomeAdapter>[0], configure?: (value: Trial) => void): Promise<Record<string, unknown>> {
+  const temporary = await mkdtemp(join(tmpdir(), `arena-outcome-${outcome}-`));
+  try {
+    const source = await repository(temporary);
+    const fixture = trial(source);
+    if (outcome === "acceptance") fixture.allowedPaths.push("fixtures/bounded-inventory/src");
+    configure?.(fixture);
+    const result = await runTrial(fixture, new Map([["codex-exec", new OutcomeAdapter(outcome)]]), join(temporary, "output"));
+    return JSON.parse(await readFile(join(result.directory, "candidates", "one", "telemetry.json"), "utf8"));
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+}
+
 test("dependency facts distinguish additions, removals, versions, section movement, lockfiles, malformed manifests, and no change", async () => {
   const cases: Array<[string, (request: CandidateRequest) => Promise<void>, string, string]> = [
     ["addition", async (request) => writeFile(join(request.worktree, "package.json"), '{"dependencies":{"before":"1.0.0","added":"1.0.0"}}'), "added", "failed"],
@@ -62,6 +89,25 @@ test("dependency facts distinguish additions, removals, versions, section moveme
       assert.equal(telemetry.hard_gates.find((gate: { id: string }) => gate.id === "dependency_policy").status, gateStatus);
     } finally { await rm(temporary, { recursive: true, force: true }); }
   }
+});
+
+test("runner records validation failures and timeouts as deterministic gate failures", async () => {
+  const failed = await outcomeTelemetry("empty", (fixture) => { fixture.validationCommands = [[process.execPath, "-e", "process.exit(2)"]]; });
+  assert.equal((failed.hard_gates as Array<{ id: string; status: string }>).find((gate) => gate.id === "required_validation_passed")?.status, "failed");
+  const timedOut = await outcomeTelemetry("empty", (fixture) => { fixture.validationTimeoutMs = 10; fixture.validationCommands = [[process.execPath, "-e", "setTimeout(() => {}, 1000)"]]; });
+  const commands = (timedOut as { change_analysis: unknown; evidence_completeness: unknown; hard_gates: unknown; }).hard_gates as Array<{ id: string; status: string }>;
+  assert.equal(commands.find((gate) => gate.id === "required_validation_passed")?.status, "failed");
+});
+
+test("runner gates timeout, empty results, failed launch evidence, and acceptance failure", async () => {
+  const timeout = await outcomeTelemetry("timeout");
+  assert.equal((timeout.hard_gates as Array<{ id: string; status: string }>).find((gate) => gate.id === "process_timeout")?.status, "failed");
+  const empty = await outcomeTelemetry("empty");
+  assert.equal((empty.hard_gates as Array<{ id: string; status: string }>).find((gate) => gate.id === "nonempty_candidate_result")?.status, "failed");
+  const launch = await outcomeTelemetry("launch");
+  assert.equal((launch.hard_gates as Array<{ id: string; status: string }>).find((gate) => gate.id === "required_evidence_complete")?.status, "passed");
+  const acceptance = await outcomeTelemetry("acceptance");
+  assert.equal((acceptance.hard_gates as Array<{ id: string; status: string }>).find((gate) => gate.id === "acceptance_validator")?.status, "failed");
 });
 
 test("native extraction preserves unknown and malformed evidence without inventing metrics", () => {
