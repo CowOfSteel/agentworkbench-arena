@@ -17,7 +17,7 @@ export interface CandidateExecution {
   adapterProvenance?: {
     executable: { source: "trial" | "environment" | "arena_config" | "path"; path: string; version?: string; versionError?: string };
     configuration_isolation?: "partial";
-    ambient?: { instructions_detected: boolean; plugins_detected: boolean };
+    ambient?: { instructions_detected: boolean; plugins_detected: boolean; ignore_flags: { user_config: boolean; rules: boolean } };
   };
 }
 export interface CandidateAdapter { doctor(candidate?: Candidate): Promise<DoctorResult>; execute(request: CandidateRequest): Promise<CandidateExecution>; }
@@ -37,7 +37,7 @@ export function codexArgs(request: CandidateRequest): string[] {
   const options = request.candidate.adapterOptions ?? {};
   const overrides = (options.config_overrides ?? {}) as Record<string, unknown>;
   const args = ["exec", "--json", "--output-last-message", join(request.artifactDirectory, "final-response.txt"), "--cd", request.worktree,
-    "--model", request.candidate.model, "--sandbox", "workspace-write", "--ephemeral", "--ignore-user-config", "--ignore-rules"];
+    "--model", request.candidate.model, "--sandbox", "workspace-write", "--ephemeral"];
   if (request.candidate.profile) args.push("--profile", request.candidate.profile);
   for (const [key, value] of Object.entries(overrides)) args.push("--config", `${key}=${JSON.stringify(value)}`);
   args.push("--config", 'approval_policy="never"');
@@ -237,7 +237,7 @@ export class CodexExecAdapter implements CandidateAdapter {
     const provenance = {
       executable: { source: executable.source, path: sanitizedPath, ...(version.ok ? { version: version.version } : { versionError }) },
       configuration_isolation: "partial" as const,
-      ambient: { instructions_detected: instructionsDetected || userInstructionsDetected, plugins_detected: userPluginsDetected || workspacePluginsDetected }
+      ambient: { instructions_detected: instructionsDetected || userInstructionsDetected, plugins_detected: userPluginsDetected || workspacePluginsDetected, ignore_flags: { user_config: false, rules: false } }
     };
     const accessToken = process.env.CODEX_ACCESS_TOKEN;
     const execution = await runProcess(executable.path, args, request.worktree, request.timeoutMs, stdoutPath, stderrPath, { redactions: accessToken ? [accessToken] : [] });

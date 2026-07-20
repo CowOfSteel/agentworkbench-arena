@@ -42,8 +42,8 @@ test("schema validates IDs and native arguments explicitly", async () => {
   assert.equal(codex[codex.indexOf("--sandbox") + 1], "workspace-write");
   assert.ok(codex.includes('model_reasoning_effort="low"'));
   assert.ok(codex.includes("--ephemeral"));
-  assert.ok(codex.includes("--ignore-user-config"));
-  assert.ok(codex.includes("--ignore-rules"));
+  assert.ok(!codex.includes("--ignore-user-config"));
+  assert.ok(!codex.includes("--ignore-rules"));
   assert.ok(!codex.includes("--strict-config"));
   assert.ok(codex.includes('approval_policy="never"'));
   assert.ok(!codex.includes("--dangerously-bypass-approvals-and-sandbox"));
@@ -256,6 +256,7 @@ test("Codex attempts inherit existing CLI state and redact optional access token
     assert.match(provenance, /"configuration_isolation": "partial"/);
     assert.match(provenance, /"instructions_detected":/);
     assert.match(provenance, /"plugins_detected":/);
+    assert.match(provenance, /"ignore_flags": \{\s+"user_config": false,\s+"rules": false\s+\}/);
     assert.match(stdout, /token=<redacted>/);
     assert.match(finalResponse, /token=<redacted>/);
     assert.doesNotMatch(provenance, /prompt-secret|access-token-secret/);
