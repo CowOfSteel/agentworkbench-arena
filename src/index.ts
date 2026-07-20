@@ -1,5 +1,5 @@
 import { CodexExecAdapter, OpenCodeRunAdapter } from "./adapters";
-import { runTrial } from "./runner";
+import { runDiagnostic, runTrial } from "./runner";
 import { loadTrial } from "./trial";
 
 const usage = `AgentWorkbench Arena (Phase 1 feasibility spike)
@@ -7,7 +7,8 @@ const usage = `AgentWorkbench Arena (Phase 1 feasibility spike)
 Usage:
   arena --help
   arena doctor <trial.yml>
-  arena run <trial.yml> [--resume <run-directory>]
+  arena run <trial.yml>
+  arena diagnostic <trial.yml> <candidate-id>
 
 Runs native candidates sequentially in isolated Git worktrees and preserves raw evidence.
 `;
@@ -23,7 +24,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<numb
     return 0;
   }
 
-  if ((args[0] === "doctor" || args[0] === "run") && args[1]) {
+  if ((args[0] === "doctor" || args[0] === "run" || args[0] === "diagnostic") && args[1]) {
     const trial = await loadTrial(args[1]);
     const adapters = new Map([
       ["codex-exec", new CodexExecAdapter()],
@@ -35,9 +36,14 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<numb
       console.log(JSON.stringify({ trial_id: trial.id, candidate_count: trial.candidates.length, adapters: checks.map(({ result }) => result) }, null, 2));
       return checks.every(({ id, result }) => !required.has(id) || result.ok) ? 0 : 1;
     }
-    const resume = args[2] === "--resume" ? args[3] : undefined;
-    if (args[2] && !resume) throw new Error("usage: arena run <trial.yml> [--resume <run-directory>]");
-    const result = await runTrial(trial, adapters, resume);
+    if (args[0] === "diagnostic") {
+      if (!args[2] || args[3]) throw new Error("usage: arena diagnostic <trial.yml> <candidate-id>");
+      const result = await runDiagnostic(trial, args[2], adapters);
+      console.log(JSON.stringify({ run_directory: result.directory, candidate: result.candidate.candidateId, passed: result.passed, diagnostic: result.diagnosticPath }, null, 2));
+      return result.passed ? 0 : 1;
+    }
+    if (args[2]) throw new Error("usage: arena run <trial.yml>");
+    const result = await runTrial(trial, adapters);
     console.log(JSON.stringify({ run_directory: result.directory, attempted: result.candidates.map((candidate) => candidate.candidateId) }, null, 2));
     return 0;
   }

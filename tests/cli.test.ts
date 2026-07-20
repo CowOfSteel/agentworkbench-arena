@@ -14,6 +14,8 @@ test("CLI exposes the Phase 1 help path", () => {
   assert.match(output, /AgentWorkbench Arena/);
   assert.match(output, /Phase 1 feasibility spike/);
   assert.match(output, /arena run/);
+  assert.match(output, /arena diagnostic/);
+  assert.doesNotMatch(output, /--resume/);
 });
 
 test("doctor exits unsuccessfully when required adapters are unavailable", async () => {

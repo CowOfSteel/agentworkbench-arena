@@ -46,9 +46,10 @@ const strings = (value: unknown, label: string): string[] => {
 };
 
 const windowsReservedNames = new Set(["con", "prn", "aux", "nul", ...Array.from({ length: 9 }, (_, index) => `com${index + 1}`), ...Array.from({ length: 9 }, (_, index) => `lpt${index + 1}`)]);
+const maximumSlugLength = 48;
 const slug = (value: unknown, label: string): string => {
   const result = text(value, label);
-  if (!/^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$/.test(result) || windowsReservedNames.has(result.toLowerCase())) {
+  if (result.length > maximumSlugLength || !/^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$/.test(result) || windowsReservedNames.has(result.toLowerCase())) {
     throw new Error(`${label} must be a safe filesystem slug`);
   }
   return result;
