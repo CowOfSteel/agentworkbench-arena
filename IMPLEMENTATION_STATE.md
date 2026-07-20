@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 1 — native six-candidate feasibility spike completed with `IMPORT_COMPARISON_FALLBACK`.
+Phase 1 audit repair — native feasibility evidence is preserved historically; Phase 2 remains unopened.
 
 ## Completed work
 
@@ -12,6 +12,13 @@ Phase 1 — native six-candidate feasibility spike completed with `IMPORT_COMPAR
 - Added YAML trial validation, generic two-or-more candidate enumeration, isolated sequential Git worktrees, raw evidence, final diffs, timeout handling, and one launch/transport retry policy.
 - Added native Codex Exec and OpenCode Run adapters plus `arena doctor` and `arena run`.
 - Attempted every configured candidate and preserved inspectable evidence for each; the exact outcome is in `docs/PHASE1-FEASIBILITY-REPORT.md`.
+
+## Audit repair
+
+- Kept the published `phase1-fixture-baseline` ref and the initial feasibility report unchanged.
+- Repaired bounded attempt evidence, resume loading, redaction, safe IDs, timeout tree termination, native permissions, doctor exit status, and independent fractional-price acceptance validation.
+- Inspected the prior OpenCode raw streams: they ended after completed tool/step events without a terminal or final event, so the historical timeout is recorded as failure to exit rather than a permission wait.
+- The initial live trial remains the six Luna Low/Medium/High configurations through Codex and OpenCode; no six-candidate rerun is authorized in this repair.
 
 ## Acceptance criteria status
 
@@ -33,11 +40,11 @@ Phase 1 — native six-candidate feasibility spike completed with `IMPORT_COMPAR
 - `rtk npm start -- doctor examples/bounded-fix/trial.yml` — both adapters passed.
 - `rtk npm start -- run examples/bounded-fix/trial.yml` — all six candidates attempted; evidence preserved.
 
-## Current blockers
+## Historical blockers
 
 - Codex writes were rejected as read-only by noninteractive approval settings despite `workspace-write`.
 - OpenCode Low, Medium, and High each reached the shared 180-second timeout; High edited the allowed source file but did not terminate.
 
 ## Next bounded step
 
-Do not begin Phase 2. First verify a non-dangerous Codex write-permission configuration and an OpenCode noninteractive completion path with bounded diagnostics, then run one fresh six-candidate trial or separately authorize import fallback implementation.
+Do not begin Phase 2. Complete deterministic verification, then run only one fresh Codex Luna Low diagnostic and one fresh OpenCode Luna Low diagnostic. Do not run Medium, High, or the complete six-candidate trial.
