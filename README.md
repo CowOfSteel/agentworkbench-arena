@@ -2,7 +2,7 @@
 
 AgentWorkbench Arena is a local calibration tool for comparing complete coding-agent configurations on a user-owned repository. It is a separate contest-period prototype of a future AgentWorkbench configuration-calibration system.
 
-The project is currently in the Phase 1 native feasibility spike. It runs the locked six candidate configurations sequentially in isolated Git worktrees and preserves raw evidence for inspection.
+Phase 1 native feasibility is complete with a passing `LIVE_MODE` gate. Phase 2 remains unstarted; the project runs the locked six candidate configurations sequentially in isolated Git worktrees and preserves raw evidence for inspection.
 
 ## Quick start
 
@@ -11,10 +11,21 @@ npm install
 npm run build
 npm test
 npm start -- doctor examples/bounded-fix/trial.yml
+npm start -- diagnose examples/bounded-fix/trial.yml codex-luna-low
 npm start -- run examples/bounded-fix/trial.yml
 ```
 
 The project uses TypeScript, Node.js, native Git/process capabilities, Node’s built-in test runner, and one YAML parser. It has no web framework, database, dashboard, or plugin framework.
+
+## Codex executable and authentication
+
+Codex resolution uses a candidate `adapter_options.codex_executable`, then `ARENA_CODEX_EXECUTABLE`, then a local `.arena/config.json`, and finally `codex` on `PATH`. Copy [`.arena/config.example.json`](.arena/config.example.json) for a local non-secret executable path; local config is ignored by Git.
+
+Arena uses the existing Codex CLI environment so normal ChatGPT authentication works. Sign in with `codex login` and choose Sign in with ChatGPT when needed; Arena never copies, prints, or records credentials. `CODEX_ACCESS_TOKEN` is an optional advanced authentication mode only: when already supplied by the shell, Arena passes it through and redacts its value from captured evidence. Do not create, reveal, or paste a token for Arena.
+
+```powershell
+codex login
+```
 
 ## Locked product direction
 

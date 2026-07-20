@@ -19,3 +19,13 @@ Phase 0 is complete when the scaffold builds, the built-in test passes, the requ
 Phase 1 attempted the locked six-candidate feasibility spike and preserved classified evidence for each worktree. The run declared `IMPORT_COMPARISON_FALLBACK`: Codex executions were blocked by noninteractive write permission, while all OpenCode executions timed out at the common 180-second limit. Do not rerun candidates while debugging; inspect the recorded evidence first.
 
 Do not begin judging, telemetry normalization, HTML reports, routing, plugins, or AgentWorkbench integration during that spike.
+
+## Branch-and-draft-PR review workflow
+
+1. Start each bounded repair from a clean `main` checkout on a named branch.
+2. Keep the repair within the requested roadmap phase and preserve historical reports and published baseline refs.
+3. Inspect `git diff` and run the focused tests before each coherent local commit.
+4. After deterministic verification, prepare the branch for a draft PR with the exact commands, evidence, blockers, and remaining scope recorded.
+5. When push authority is granted, push the branch and open a draft PR; review the diff and checks, address comments with follow-up commits, and merge only after explicit approval.
+
+This workflow does not authorize pushing or merging. The initial Phase 1 feasibility report remains historical evidence and is not rewritten during repairs.

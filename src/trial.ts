@@ -45,6 +45,16 @@ const strings = (value: unknown, label: string): string[] => {
   return value as string[];
 };
 
+const windowsReservedNames = new Set(["con", "prn", "aux", "nul", ...Array.from({ length: 9 }, (_, index) => `com${index + 1}`), ...Array.from({ length: 9 }, (_, index) => `lpt${index + 1}`)]);
+const maximumSlugLength = 48;
+const slug = (value: unknown, label: string): string => {
+  const result = text(value, label);
+  if (result.length > maximumSlugLength || !/^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$/.test(result) || windowsReservedNames.has(result.toLowerCase())) {
+    throw new Error(`${label} must be a safe filesystem slug`);
+  }
+  return result;
+};
+
 export function validateTrial(value: unknown): Trial {
   const raw = object(value, "trial");
   const commands = raw.validation_commands;
@@ -59,7 +69,7 @@ export function validateTrial(value: unknown): Trial {
     const adapter = text(candidate.adapter, `candidates[${index}].adapter`);
     if (adapter !== "codex-exec" && adapter !== "opencode-run") throw new Error(`unsupported adapter: ${adapter}`);
     return {
-      id: text(candidate.id, `candidates[${index}].id`),
+      id: slug(candidate.id, `candidates[${index}].id`),
       adapter: adapter as AdapterId,
       harness: text(candidate.harness, `candidates[${index}].harness`),
       provider: candidate.provider === undefined ? undefined : text(candidate.provider, `candidates[${index}].provider`),
@@ -72,14 +82,21 @@ export function validateTrial(value: unknown): Trial {
       toolProvenance: candidate.tool_provenance === undefined ? undefined : object(candidate.tool_provenance, `candidates[${index}].tool_provenance`)
     };
   });
-  if (new Set(parsedCandidates.map((candidate) => candidate.id)).size !== parsedCandidates.length) throw new Error("candidate ids must be unique");
+  for (const [index, candidate] of parsedCandidates.entries()) {
+    const executable = candidate.adapterOptions?.codex_executable;
+    if (executable !== undefined && (candidate.adapter !== "codex-exec" || typeof executable !== "string" || !executable.trim())) {
+      throw new Error(`candidates[${index}].adapter_options.codex_executable must be a non-empty string for codex-exec`);
+    }
+  }
+  const normalizedCandidateIds = parsedCandidates.map((candidate) => candidate.id.toLowerCase());
+  if (new Set(normalizedCandidateIds).size !== parsedCandidates.length) throw new Error("candidate ids must be unique case-insensitively");
   const timeoutMs = raw.timeout_ms;
   if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error("timeout_ms must be positive");
   const retries = retry.max_launch_transport_retries;
   if (retries !== 1) throw new Error("retry_policy.max_launch_transport_retries must be 1 in Phase 1");
   if (raw.manual_intervention !== "forbidden") throw new Error("manual_intervention must be forbidden in Phase 1");
   return {
-    id: text(raw.id, "id"), repository: text(raw.repository, "repository"), baselineRef: text(raw.baseline_ref, "baseline_ref"),
+    id: slug(raw.id, "id"), repository: text(raw.repository, "repository"), baselineRef: text(raw.baseline_ref, "baseline_ref"),
     taskContract: text(raw.task_contract, "task_contract"), allowedPaths: strings(raw.allowed_paths, "allowed_paths"),
     forbiddenPaths: strings(raw.forbidden_paths, "forbidden_paths"), validationCommands: commands as string[][],
     timeoutMs, maxLaunchTransportRetries: retries, manualIntervention: "forbidden",

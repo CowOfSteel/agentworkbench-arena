@@ -43,7 +43,7 @@ AgentWorkbench Arena performs a private, repository-specific configuration trial
 
 ## Contest MVP
 
-The contest version must support a first-class candidate array and compare **at least four live configurations in one trial**.
+Trials support two or more candidates in one first-class candidate array. Candidate count is configuration data, not a hard-coded runner or schema constant.
 
 The initial demonstration should prioritize controlled Codex comparisons across different:
 
@@ -51,7 +51,7 @@ The initial demonstration should prioritize controlled Codex comparisons across 
 * reasoning or attention limits;
 * model-and-attention combinations.
 
-A recommended contest trial is four to six candidates. This is large enough to demonstrate genuine configuration calibration without turning the sprint into a broad benchmark campaign.
+The initial live trial is Luna Low, Medium, and High through Codex and Luna Low, Medium, and High through OpenCode. The product has no schema-level maximum candidate count; any operational trial-size recommendation is a contest-process guard, not a product limit.
 
 The minimum live implementation remains two native adapters:
 
@@ -1544,7 +1544,7 @@ The two-hour margin is reserved for upload, permission, Devpost, or YouTube fail
 The following are prohibited before submission:
 
 * more than two live adapter implementations;
-* contest trials larger than six candidates unless the complete product is already stable;
+* contest trials larger than six candidates unless the complete product is already stable; this operational guard is not a schema-level maximum;
 * Reasonix integration;
 * Claude Code integration;
 * Gemini integration;
