@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { basename } from "node:path";
 import { Candidate, Trial } from "./trial";
 
 export const telemetrySchemaVersion = "2.0";
@@ -100,4 +101,20 @@ export function configurationHash(candidate: Candidate, trial: Trial): string {
 
 export function trialSnapshot(trial: Trial): Record<string, unknown> {
   return { schema_version: telemetrySchemaVersion, trial_id: trial.id, task_contract_hash: createHash("sha256").update(trial.taskContract).digest("hex"), allowed_paths: [...trial.allowedPaths].sort(), forbidden_paths: [...trial.forbiddenPaths].sort(), validation_commands: trial.validationCommands, timeout_ms: trial.timeoutMs, validation_timeout_ms: trial.validationTimeoutMs, dependency_policy: trial.dependencyPolicy, retry_limit: trial.maxLaunchTransportRetries, manual_intervention: trial.manualIntervention, candidates: trial.candidates.map((candidate) => ({ id: candidate.id, configuration_hash: configurationHash(candidate, trial) })) };
+}
+
+const unsafeTaskText = (value: string): boolean => /(?:[A-Za-z]:[\\/]|\\\\|file:\/\/|(?:^|[\s"'(])\/(?:Users|home|tmp|var|private|mnt|opt)\/|(?:token|password|secret|credential|api[_-]?key)\s*[:=]|(?:codex|opencode)_executable)/i.test(value);
+const commandPart = (value: string, index: number): string => {
+  if (unsafeTaskText(value)) return index === 0 ? "<command:redacted>" : "<redacted>";
+  if (index === 0 && /[\\/]/.test(value)) return basename(value.replace(/\\/g, "/"));
+  return value;
+};
+
+export function taskContractArtifact(trial: Trial): Record<string, unknown> {
+  if (unsafeTaskText(trial.taskContract)) throw new Error("task contract is unsafe for Phase 3 packet preservation");
+  return {
+    schema_version: "1.0", task_contract_hash: createHash("sha256").update(trial.taskContract).digest("hex"), objective: trial.taskContract,
+    instructions: [], acceptance_criteria: [], allowed_paths: [...trial.allowedPaths].sort(), forbidden_paths: [...trial.forbiddenPaths].sort(),
+    validation_commands: trial.validationCommands.map((command) => command.map(commandPart))
+  };
 }

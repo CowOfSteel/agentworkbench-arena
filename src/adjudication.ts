@@ -13,221 +13,139 @@ export const defaultJudgeConfig: JudgeConfig = { model: "gpt-5.6-sol", reasoning
 export interface JudgeRequest { staging_directory: string; packet: unknown; schema: unknown; prompt: string; config: JudgeConfig; }
 export interface JudgeExecution { started_at: string; completed_at: string; wall_clock_ms: number; exit_code: number | null; timeout: boolean; stdout: string; stderr: string; response_text: string; launch_error: string | null; failure_classification: string | null; args: string[]; }
 export interface JudgeAdapter { doctor(config: JudgeConfig): Promise<DoctorResult>; adjudicate(request: JudgeRequest): Promise<JudgeExecution>; }
+export interface PacketLimits { validation_output_chars: number; diff_chars: number; candidate_chars: number; packet_chars?: number; }
+export const defaultPacketLimits: PacketLimits = { validation_output_chars: 1_000, diff_chars: 8_000, candidate_chars: 12_000 };
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
-interface CandidatePacket { id: string; label: string; telemetry: Record<string, unknown>; validation: Record<string, unknown>; diff: string; }
-interface LoadedRun { directory: string; manifest: Record<string, unknown>; snapshot: Record<string, unknown>; candidates: CandidatePacket[]; }
-
-const portable = (value: unknown): value is string => typeof value === "string" && value.length > 0 && !/^(?:[A-Za-z]:)?[\\/]/.test(value) && !value.split(/[\\/]/).includes("..");
+interface CandidatePacket { id: string; label: string; artifactDirectory: string; telemetry: Record<string, unknown>; validation: Record<string, unknown>; provenance: Record<string, unknown>; diff: string; }
+interface LoadedRun { directory: string; manifest: Record<string, unknown>; snapshot: Record<string, unknown>; taskContract: Record<string, unknown>; candidates: CandidatePacket[]; forbidden: string[]; }
+const criteria = ["acceptance_coverage", "maintainability", "architecture_fit", "regression_risk", "unnecessary_complexity", "evidence_quality"] as const;
+const ordinal = new Set(["strong", "adequate", "weak", "insufficient_evidence"]);
+const maxText = 2_000, maxList = 16, maxResponse = 16_000;
+const hash = (value: string): string => createHash("sha256").update(value).digest("hex");
+const json = (value: unknown): string => JSON.stringify(value, null, 2);
 const object = (value: unknown, label: string): Record<string, unknown> => { if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be an object`); return value as Record<string, unknown>; };
 const array = (value: unknown, label: string): unknown[] => { if (!Array.isArray(value)) throw new Error(`${label} must be an array`); return value; };
 const text = (value: unknown, label: string): string => { if (typeof value !== "string") throw new Error(`${label} must be a string`); return value; };
-const hash = (value: string): string => createHash("sha256").update(value).digest("hex");
-const labelAt = (index: number): string => { let value = index + 1; let label = ""; while (value > 0) { value--; label = String.fromCharCode(65 + value % 26) + label; value = Math.floor(value / 26); } return label; };
-const metricValue = (value: unknown): Json => object(value, "metric").value as Json;
+const portable = (value: unknown): value is string => typeof value === "string" && value.length > 0 && !/^(?:[A-Za-z]:)?[\\/]/.test(value) && !value.split(/[\\/]/).includes("..");
+const metric = (value: unknown): Json => object(value, "metric").value as Json;
+const labelAt = (index: number): string => { let value = index + 1, result = ""; while (value) { value--; result = String.fromCharCode(65 + value % 26) + result; value = Math.floor(value / 26); } return result; };
 const truncate = (value: string, limit: number): { text: string; truncated: boolean } => value.length <= limit ? { text: value, truncated: false } : { text: `${value.slice(0, Math.max(0, limit - 16))}\n<truncated>`, truncated: true };
-const json = (value: unknown): string => JSON.stringify(value, null, 2);
-// Candidate diffs can contain absolute worktree paths in Git's no-index headers. Keep only content/hunk lines.
-const judgeDiff = (value: string): string => value.split(/\r?\n/).filter((line) => !/^(diff --git |index |--- |\+\+\+ |new file mode |deleted file mode )/.test(line)).join("\n");
+const pathPattern = /(?:[A-Za-z]:[\\/]|\\\\[^\\/]+[\\/]|file:\/\/|(?:^|[\s"'(])\/(?:Users|home|tmp|var|private|mnt|opt|dev)\/)/i;
+const sanitizePaths = (value: string): string => value.replace(/[A-Za-z]:[\\/][^\s"']+|\\\\[^\\/]+[\\/][^\s"']+|file:\/\/[^\s"']+|\/(?:Users|home|tmp|var|private|mnt|opt)\/[^\s"']+/gi, "<path:redacted>");
 
-async function atomicWrite(path: string, value: unknown): Promise<void> {
-  const temporary = `${path}.tmp`;
-  await writeFile(temporary, typeof value === "string" ? value : json(value));
-  await rename(temporary, path);
-}
-
-function ensureNoLeak(value: unknown, forbidden: string[], label = "judge packet"): void {
-  if (typeof value === "string") {
-    if (/^(?:[A-Za-z]:)?[\\/]/.test(value)) throw new Error(`${label} contains a local path at ${label}`);
-    if (forbidden.some((item) => item && value.includes(item))) throw new Error(`${label} contains candidate identity at ${label}`);
-    return;
-  }
-  if (Array.isArray(value)) return value.forEach((item, index) => ensureNoLeak(item, forbidden, `${label}[${index}]`));
-  if (value && typeof value === "object") Object.entries(value).forEach(([key, item]) => ensureNoLeak(item, forbidden, `${label}.${key}`));
-}
-
+async function atomicWrite(path: string, value: unknown): Promise<void> { const temporary = `${path}.tmp`; await writeFile(temporary, typeof value === "string" ? value : json(value)); await rename(temporary, path); }
 async function readJson(path: string): Promise<Record<string, unknown>> { return object(JSON.parse(await readFile(path, "utf8")), path); }
+function strings(value: unknown, target: Set<string>): void { if (typeof value === "string" && value) target.add(value); else if (Array.isArray(value)) value.forEach((item) => strings(item, target)); else if (value && typeof value === "object") Object.values(value).forEach((item) => strings(item, target)); }
+function failPolicy(): never { throw new Error("judge packet violates identity or path policy"); }
+function ensureSafe(value: unknown, forbidden: string[], runDirectory = ""): void {
+  if (typeof value === "string") {
+    const lower = value.toLocaleLowerCase();
+    if (pathPattern.test(value) || (runDirectory && lower.includes(runDirectory.toLocaleLowerCase())) || forbidden.some((item) => item && lower.includes(item.toLocaleLowerCase()))) failPolicy();
+  } else if (Array.isArray(value)) value.forEach((item) => ensureSafe(item, forbidden, runDirectory));
+  else if (value && typeof value === "object") Object.values(value).forEach((item) => ensureSafe(item, forbidden, runDirectory));
+}
+function safeText(value: string, forbidden: string[], runDirectory: string): string { const sanitized = sanitizePaths(value); ensureSafe(sanitized, forbidden, runDirectory); return sanitized; }
+
+function forbiddenInventory(candidate: CandidatePacket, manifestCandidate: Record<string, unknown>): string[] {
+  const values = new Set<string>(); const telemetry = object(candidate.telemetry.provenance, "telemetry provenance");
+  for (const source of [candidate.id, candidate.artifactDirectory, manifestCandidate.configuration_hash, telemetry.adapter, telemetry.harness, telemetry.provider, telemetry.model, telemetry.attention, telemetry.agent, telemetry.profile, telemetry.configuration_hash]) strings(source, values);
+  const native = candidate.provenance;
+  for (const key of ["candidate_id", "adapter", "harness", "provider", "model", "attention", "agent", "profile"]) strings(native[key], values);
+  strings(object(native.adapter_execution ?? {}, "adapter execution").executable, values);
+  return [...values].filter(Boolean);
+}
 
 export async function loadPhase2Run(runDirectory: string): Promise<LoadedRun> {
-  const directory = resolve(runDirectory);
-  const [manifest, snapshot] = await Promise.all([readJson(join(directory, "manifest.json")), readJson(join(directory, "trial-snapshot.json"))]);
+  const directory = resolve(runDirectory); const [manifest, snapshot] = await Promise.all([readJson(join(directory, "manifest.json")), readJson(join(directory, "trial-snapshot.json"))]);
   if (manifest.manifest_finalization_status !== "complete" || manifest.phase_3_readiness !== "ready_for_audit") throw new Error("run is not finalized for Phase 3 audit");
-  const candidates = array(manifest.candidates, "manifest candidates");
-  if (typeof manifest.candidate_count !== "number" || manifest.candidate_count !== candidates.length) throw new Error("manifest candidate count mismatch");
-  if (hash(JSON.stringify(snapshot)) !== manifest.normalized_trial_snapshot_hash) throw new Error("trial snapshot hash mismatch");
-  if (snapshot.task_contract_hash !== manifest.task_contract_hash) throw new Error("task contract hash mismatch");
-  const expectedDirectories = new Set<string>();
-  const loaded: CandidatePacket[] = [];
-  for (const item of candidates) {
-    const candidate = object(item, "manifest candidate");
-    const id = text(candidate.candidate_id, "candidate id");
-    const artifactDirectory = text(candidate.artifact_directory, "artifact directory");
-    if (!portable(artifactDirectory) || artifactDirectory !== `candidates/${id}` || expectedDirectories.has(artifactDirectory)) throw new Error("invalid or duplicate candidate artifact directory");
-    expectedDirectories.add(artifactDirectory);
-    const absolute = resolve(directory, artifactDirectory);
-    if (relative(directory, absolute).startsWith("..") || !absolute.startsWith(`${directory}${sep}`)) throw new Error("candidate artifact path escapes run directory");
-    const [telemetry, validation, diff] = await Promise.all([readJson(join(absolute, "telemetry.json")), readJson(join(absolute, "validation.json")), readFile(join(absolute, "candidate.diff"), "utf8")]);
-    if (!phase3PacketReady({ telemetry, validation, artifactDirectory })) throw new Error(`candidate ${id} is not Phase 3 packet ready`);
-    const provenance = object(telemetry.provenance, "telemetry provenance");
-    if (provenance.candidate_id !== id || provenance.task_contract_hash !== manifest.task_contract_hash || provenance.configuration_hash !== candidate.configuration_hash) throw new Error(`candidate ${id} provenance mismatch`);
-    loaded.push({ id, label: "", telemetry, validation, diff });
+  if (hash(JSON.stringify(snapshot)) !== manifest.normalized_trial_snapshot_hash || snapshot.task_contract_hash !== manifest.task_contract_hash) throw new Error("run integrity check failed");
+  if (!portable(manifest.task_contract_artifact)) throw new Error("run lacks canonical task contract artifact");
+  const taskContract = await readJson(join(directory, manifest.task_contract_artifact));
+  if (taskContract.task_contract_hash !== manifest.task_contract_hash || typeof taskContract.objective !== "string" || !Array.isArray(taskContract.instructions) || !Array.isArray(taskContract.acceptance_criteria) || !Array.isArray(taskContract.validation_commands)) throw new Error("task contract integrity check failed");
+  const manifestCandidates = array(manifest.candidates, "manifest candidates"); if (manifest.candidate_count !== manifestCandidates.length) throw new Error("manifest candidate count mismatch");
+  const seen = new Set<string>(), actual = new Set((await readdir(join(directory, "candidates"), { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => `candidates/${entry.name}`));
+  const candidates: CandidatePacket[] = []; const forbidden = new Set<string>();
+  for (const raw of manifestCandidates) {
+    const entry = object(raw, "manifest candidate"), id = text(entry.candidate_id, "candidate id"), artifactDirectory = text(entry.artifact_directory, "artifact directory");
+    if (!portable(artifactDirectory) || artifactDirectory !== `candidates/${id}` || seen.has(artifactDirectory) || !actual.delete(artifactDirectory)) throw new Error("candidate artifact integrity check failed");
+    seen.add(artifactDirectory); const absolute = resolve(directory, artifactDirectory); if (relative(directory, absolute).startsWith("..") || !absolute.startsWith(`${directory}${sep}`)) throw new Error("candidate artifact integrity check failed");
+    const [telemetry, validation, provenance, diff] = await Promise.all([readJson(join(absolute, "telemetry.json")), readJson(join(absolute, "validation.json")), readJson(join(absolute, "provenance.json")), readFile(join(absolute, "candidate.diff"), "utf8")]);
+    if (!phase3PacketReady({ telemetry, validation, artifactDirectory, taskContract })) throw new Error("candidate packet is not ready");
+    const source = object(telemetry.provenance, "telemetry provenance"); if (source.candidate_id !== id || source.task_contract_hash !== manifest.task_contract_hash || source.configuration_hash !== entry.configuration_hash) throw new Error("candidate provenance integrity check failed");
+    const candidate = { id, label: "", artifactDirectory, telemetry, validation, provenance, diff }; forbiddenInventory(candidate, entry).forEach((item) => forbidden.add(item)); candidates.push(candidate);
   }
-  const actualDirectories = new Set((await readdir(join(directory, "candidates"), { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => `candidates/${entry.name}`));
-  if (actualDirectories.size !== expectedDirectories.size || [...actualDirectories].some((entry) => !expectedDirectories.has(entry))) throw new Error("unexpected candidate artifacts");
-  return { directory, manifest, snapshot, candidates: loaded };
+  if (actual.size) throw new Error("candidate artifact integrity check failed");
+  return { directory, manifest, snapshot, taskContract, candidates, forbidden: [...forbidden] };
 }
 
-function maskedCandidates(run: LoadedRun): CandidatePacket[] {
-  const seed = `${judgeSchemaVersion}:${run.manifest.run_id}:${run.manifest.trial_id}:${run.manifest.task_contract_hash}:${run.manifest.normalized_trial_snapshot_hash}`;
-  return [...run.candidates].sort((left, right) => hash(`${seed}:${left.id}`).localeCompare(hash(`${seed}:${right.id}`))).map((candidate, index) => ({ ...candidate, label: labelAt(index) }));
-}
-
-function candidateInput(candidate: CandidatePacket, excerptLimit: number): Record<string, Json> {
-  const telemetry = candidate.telemetry;
-  const output = object(telemetry.output, "telemetry output");
-  const execution = object(telemetry.execution, "telemetry execution");
-  const changes = object(telemetry.change_analysis, "change analysis");
-  const commands = array(candidate.validation.commands, "validation commands");
-  const commandLimit = Math.max(128, Math.floor(excerptLimit / Math.max(1, commands.length * 2)));
-  const validation = commands.map((item) => {
-    const command = object(item, "validation command");
-    const stdout = truncate(String(command.stdout ?? ""), commandLimit);
-    const stderr = truncate(String(command.stderr ?? ""), commandLimit);
-    return { status: command.status as Json, exit_code: command.exit_code as Json, timeout: command.timeout as Json, failure_classification: command.failure_classification as Json, stdout_excerpt: stdout.text, stderr_excerpt: stderr.text, truncated: stdout.truncated || stderr.truncated };
-  });
-  const diff = truncate(judgeDiff(candidate.diff), excerptLimit * 2);
-  const gates = array(telemetry.hard_gates, "hard gates").map((item) => { const gate = object(item, "hard gate"); return { id: gate.id as Json, status: gate.status as Json, reason: gate.reason as Json }; });
-  return {
-    label: candidate.label,
-    hard_gates: gates,
-    deterministic_facts: {
-      files_changed: metricValue(output.files_changed), lines_added: metricValue(output.lines_added), lines_deleted: metricValue(output.lines_deleted), validation_pass_count: metricValue(output.validation_pass_count), validation_fail_count: metricValue(output.validation_fail_count), process_timeout: metricValue(execution.process_timeout), pre_validation: { changed_paths: array(object(changes.pre_validation, "pre validation").changed_paths, "changed paths").length, untracked_paths: array(object(changes.pre_validation, "pre validation").untracked_paths, "untracked paths").length },
-      evidence_completeness: object(telemetry.evidence_completeness, "evidence completeness").status as Json
-    },
-    validation,
-    candidate_diff: diff.text,
-    truncation: { candidate_diff: diff.truncated, validation_excerpt_limit: commandLimit }
-  };
-}
-
-export function buildJudgePacket(run: LoadedRun): { packet: Record<string, Json>; identityMap: Record<string, string> } {
-  const candidates = maskedCandidates(run);
-  const labels = candidates.map((candidate) => candidate.label);
-  const packet = {
-    schema_version: judgeSchemaVersion,
-    task_snapshot: { task_contract_hash: run.manifest.task_contract_hash as string, allowed_paths: run.snapshot.allowed_paths as Json, forbidden_paths: run.snapshot.forbidden_paths as Json, validation_commands: (run.snapshot.validation_commands as unknown[]).map(() => "configured command") },
-    criteria: ["acceptance_coverage", "maintainability", "architecture_fit", "regression_risk", "unnecessary_complexity", "evidence_quality"],
-    candidates: candidates.map((candidate) => candidateInput(candidate, 2_000)),
-    limits: { per_candidate_excerpt_chars: 6_000, run_packet_budget_chars: 8_000 + candidates.length * 12_000 }
-  } as Record<string, Json>;
-  ensureNoLeak(packet, candidates.map((candidate) => candidate.id));
-  return { packet, identityMap: Object.fromEntries(candidates.map((candidate) => [candidate.label, candidate.id])) };
-}
-
-const criteria = ["acceptance_coverage", "maintainability", "architecture_fit", "regression_risk", "unnecessary_complexity", "evidence_quality"] as const;
-const ordinal = new Set(["strong", "adequate", "weak", "insufficient_evidence"]);
-function exactKeys(value: Record<string, unknown>, keys: string[], label: string): void { if (Object.keys(value).length !== keys.length || keys.some((key) => !(key in value))) throw new Error(`${label} has invalid fields`); }
-export function validateJudgeResponse(value: unknown, labels: string[], eligible: Set<string>): Record<string, unknown> {
-  const result = object(value, "judge response");
-  exactKeys(result, ["schema_version", "verdict", "recommended_labels", "confidence", "ranking", "criteria_by_candidate", "strengths_by_candidate", "risks_by_candidate", "limitations", "summary"], "judge response");
-  if (result.schema_version !== judgeSchemaVersion || !["RECOMMENDATION", "TIE", "INCONCLUSIVE"].includes(String(result.verdict)) || !["low", "medium", "high"].includes(String(result.confidence))) throw new Error("judge response has invalid header");
-  const recommendation = array(result.recommended_labels, "recommended labels").map((item) => text(item, "recommended label"));
-  if (recommendation.some((label) => !eligible.has(label)) || new Set(recommendation).size !== recommendation.length) throw new Error("judge response recommends an ineligible or duplicate label");
-  if (result.verdict === "RECOMMENDATION" && recommendation.length !== 1) throw new Error("recommendation verdict requires one label");
-  if (result.verdict === "TIE" && recommendation.length < 2) throw new Error("tie verdict requires two labels");
-  if (result.verdict === "INCONCLUSIVE" && recommendation.length !== 0) throw new Error("inconclusive verdict cannot recommend a label");
-  const ranking = array(result.ranking, "ranking").map((item) => object(item, "ranking item"));
-  if (ranking.length !== eligible.size || new Set(ranking.map((item) => item.label)).size !== ranking.length || ranking.some((item) => !eligible.has(item.label as string) || typeof item.rank !== "number" || !ordinal.has(String(item.tier)) || typeof item.rationale !== "string")) throw new Error("judge response has invalid ranking");
-  const top = new Set(ranking.filter((item) => item.rank === 1).map((item) => item.label as string));
-  if ((result.verdict === "RECOMMENDATION" && (top.size !== 1 || !top.has(recommendation[0]))) || (result.verdict === "TIE" && (top.size !== recommendation.length || recommendation.some((label) => !top.has(label))))) throw new Error("judge response has inconsistent recommendation ranks");
-  for (const section of ["criteria_by_candidate", "strengths_by_candidate", "risks_by_candidate"] as const) {
-    const entries = object(result[section], section); exactKeys(entries, labels, section);
-    for (const label of labels) {
-      if (section === "criteria_by_candidate") { const item = object(entries[label], `${section}.${label}`); exactKeys(item, [...criteria], `${section}.${label}`); if (criteria.some((key) => !ordinal.has(String(item[key])))) throw new Error("invalid criterion ordinal"); }
-      else if (!Array.isArray(entries[label]) || (entries[label] as unknown[]).some((item) => typeof item !== "string")) throw new Error(`${section}.${label} must be a string list`);
-    }
+function maskedCandidates(run: LoadedRun): CandidatePacket[] { const seed = `${judgeSchemaVersion}:${run.manifest.run_id}:${run.manifest.trial_id}:${run.manifest.task_contract_hash}:${run.manifest.normalized_trial_snapshot_hash}`; return [...run.candidates].sort((a, b) => hash(`${seed}:${a.id}`).localeCompare(hash(`${seed}:${b.id}`))).map((candidate, index) => ({ ...candidate, label: labelAt(index) })); }
+function changedPaths(candidate: CandidatePacket): string[] { return array(object(object(candidate.telemetry.change_analysis, "change analysis").pre_validation, "pre validation").changed_paths, "changed paths").filter((value): value is string => typeof value === "string" && portable(value)).sort(); }
+function safeDiff(diff: string, paths: string[], limit: number): { text: string; limitations: string[] } {
+  const output: string[] = [], limitations: string[] = []; let current: string | undefined;
+  for (const line of diff.split(/\r?\n/)) {
+    if (line.startsWith("diff --git ")) { current = paths.find((path) => line.replace(/\\/g, "/").includes(`/${path}`)); if (current) output.push(`diff --git a/${current} b/${current}`); else limitations.push("unsafe diff header omitted"); continue; }
+    if (/^(--- |\+\+\+ )/.test(line)) { if (!current) continue; output.push(`${line.slice(0, 4)}${line.startsWith("--- ") && /\/dev\/null/.test(line) ? "/dev/null" : `${line.startsWith("--- ") ? "a" : "b"}/${current}`}`); continue; }
+    if (/^(index |new file mode |deleted file mode )/.test(line)) continue;
+    if (/^(@@|[ +\-])/.test(line)) output.push(line);
   }
-  if (!Array.isArray(result.limitations) || (result.limitations as unknown[]).some((item) => typeof item !== "string") || typeof result.summary !== "string") throw new Error("judge response has invalid conclusion");
-  return result;
+  const clipped = truncate(output.join("\n"), limit); if (clipped.truncated) limitations.push("diff truncated to symmetric limit"); return { text: clipped.text, limitations };
+}
+
+function candidateInput(candidate: CandidatePacket, run: LoadedRun, limits: PacketLimits): Record<string, Json> {
+  const telemetry = candidate.telemetry, output = object(telemetry.output, "output"), execution = object(telemetry.execution, "execution"), changes = object(telemetry.change_analysis, "changes"); const limitations: string[] = [];
+  const commands = array(candidate.validation.commands, "validation commands"), perSide = Math.max(64, Math.floor(limits.validation_output_chars / Math.max(1, commands.length * 2)));
+  const validation = commands.map((raw) => { const command = object(raw, "validation command"), stdout = truncate(safeText(String(command.stdout ?? ""), run.forbidden, run.directory), perSide), stderr = truncate(safeText(String(command.stderr ?? ""), run.forbidden, run.directory), perSide); if (stdout.truncated || stderr.truncated) limitations.push("validation output truncated to symmetric limit"); return { status: command.status as Json, exit_code: command.exit_code as Json, timeout: command.timeout as Json, failure_classification: command.failure_classification as Json, stdout_excerpt: stdout.text, stderr_excerpt: stderr.text }; });
+  const diff = safeDiff(candidate.diff, changedPaths(candidate), limits.diff_chars); limitations.push(...diff.limitations);
+  const gates = array(telemetry.hard_gates, "hard gates").map((raw) => { const gate = object(raw, "hard gate"); return { id: gate.id as Json, status: gate.status as Json, reason: safeText(String(gate.reason ?? ""), run.forbidden, run.directory) }; });
+  const result: Record<string, Json> = { label: candidate.label, hard_gates: gates, deterministic_facts: { files_changed: metric(output.files_changed), lines_added: metric(output.lines_added), lines_deleted: metric(output.lines_deleted), validation_pass_count: metric(output.validation_pass_count), validation_fail_count: metric(output.validation_fail_count), process_timeout: metric(execution.process_timeout), pre_validation: { changed_paths: changedPaths(candidate).length, untracked_paths: array(object(changes.pre_validation, "pre validation").untracked_paths, "untracked paths").length }, evidence_completeness: object(telemetry.evidence_completeness, "evidence").status as Json }, validation, candidate_diff: diff.text, evidence_limitations: limitations };
+  if (JSON.stringify(result).length > limits.candidate_chars) throw new Error("judge packet exceeds configured budget"); return result;
+}
+
+export function buildJudgePacket(run: LoadedRun, limits: PacketLimits = defaultPacketLimits): { packet: Record<string, Json>; identityMap: Record<string, string> } {
+  const candidates = maskedCandidates(run), packetLimit = limits.packet_chars ?? 8_192 + limits.candidate_chars * candidates.length;
+  const packet: Record<string, Json> = { schema_version: judgeSchemaVersion, task_contract: { objective: run.taskContract.objective as string, instructions: run.taskContract.instructions as Json, acceptance_criteria: run.taskContract.acceptance_criteria as Json, allowed_paths: run.taskContract.allowed_paths as Json, forbidden_paths: run.taskContract.forbidden_paths as Json, validation_commands: run.taskContract.validation_commands as Json }, criteria: [...criteria], candidates: candidates.map((candidate) => candidateInput(candidate, run, limits)), evidence_limitations: [], limits: { validation_output_chars: limits.validation_output_chars, diff_chars: limits.diff_chars, candidate_chars: limits.candidate_chars, packet_chars: packetLimit } };
+  ensureSafe(packet, run.forbidden, run.directory); const serialized = JSON.stringify(packet); if (serialized.length > packetLimit) throw new Error("judge packet exceeds configured budget"); (packet.evidence_limitations as Json[]).push(`serialized packet ${serialized.length}/${packetLimit} characters`); return { packet, identityMap: Object.fromEntries(candidates.map((candidate) => [candidate.label, candidate.id])) };
+}
+
+function exact(value: Record<string, unknown>, keys: string[], label: string): void { if (Object.keys(value).length !== keys.length || keys.some((key) => !(key in value))) throw new Error(`${label} is invalid`); }
+function bounded(value: unknown, label: string): string { const result = text(value, label); if (result.length > maxText) throw new Error(`${label} is invalid`); return result; }
+export function validateJudgeResponse(value: unknown, labels: string[], eligible: Set<string>, forbidden: string[] = []): Record<string, unknown> {
+  ensureSafe(value, forbidden); const result = object(value, "judge response"); exact(result, ["schema_version", "verdict", "recommended_labels", "confidence", "ranking", "criteria_by_candidate", "strengths_by_candidate", "risks_by_candidate", "limitations", "summary"], "judge response");
+  if (result.schema_version !== judgeSchemaVersion || !["RECOMMENDATION", "TIE", "INCONCLUSIVE"].includes(String(result.verdict)) || !["low", "medium", "high"].includes(String(result.confidence))) throw new Error("judge response is invalid");
+  const recommended = array(result.recommended_labels, "recommended labels").map((item) => bounded(item, "recommended label")); if (recommended.length > maxList || new Set(recommended).size !== recommended.length || recommended.some((label) => !eligible.has(label))) throw new Error("judge response is invalid");
+  const ranking = array(result.ranking, "ranking").map((item) => object(item, "ranking item")); if (ranking.length !== eligible.size || new Set(ranking.map((item) => item.label)).size !== ranking.length) throw new Error("judge response is invalid");
+  const ranks = ranking.map((item) => { exact(item, ["label", "rank", "tier", "rationale"], "ranking item"); if (!eligible.has(String(item.label)) || !Number.isInteger(item.rank) || (item.rank as number) < 1 || !ordinal.has(String(item.tier))) throw new Error("judge response is invalid"); bounded(item.rationale, "rationale"); return item; });
+  const top = ranks.filter((item) => item.rank === 1).map((item) => String(item.label)), rest = ranks.filter((item) => item.rank !== 1).map((item) => item.rank as number).sort((a, b) => a - b);
+  if (result.verdict === "RECOMMENDATION" && (recommended.length !== 1 || top.length !== 1 || top[0] !== recommended[0])) throw new Error("judge response is invalid");
+  if (result.verdict === "TIE" && (recommended.length < 2 || recommended.length !== top.length || recommended.some((label) => !top.includes(label)))) throw new Error("judge response is invalid");
+  if (result.verdict === "INCONCLUSIVE" && recommended.length !== 0) throw new Error("judge response is invalid");
+  if (rest.some((rank, index) => rank !== index + 2) || new Set(rest).size !== rest.length) throw new Error("judge response is invalid");
+  for (const section of ["criteria_by_candidate", "strengths_by_candidate", "risks_by_candidate"] as const) { const entries = object(result[section], section); exact(entries, labels, section); for (const label of labels) { if (section === "criteria_by_candidate") { const entry = object(entries[label], "criteria"); exact(entry, [...criteria], "criteria"); if (criteria.some((key) => !ordinal.has(String(entry[key])))) throw new Error("judge response is invalid"); } else { const list = array(entries[label], "findings"); if (list.length > maxList) throw new Error("judge response is invalid"); list.forEach((item) => bounded(item, "finding")); } } }
+  const limitations = array(result.limitations, "limitations"); if (limitations.length > maxList) throw new Error("judge response is invalid"); limitations.forEach((item) => bounded(item, "limitation")); bounded(result.summary, "summary"); return result;
 }
 
 export class CodexJudgeAdapter implements JudgeAdapter {
   async doctor(_config: JudgeConfig): Promise<DoctorResult> { return new CodexExecAdapter().doctor(); }
-  async adjudicate(request: JudgeRequest): Promise<JudgeExecution> {
-    await mkdir(request.staging_directory, { recursive: true });
-    const packetPath = join(request.staging_directory, "masked-judge-input.json");
-    const schemaPath = join(request.staging_directory, "judge-output-schema.json");
-    const responsePath = join(request.staging_directory, "response.txt");
-    await Promise.all([writeFile(packetPath, json(request.packet)), writeFile(schemaPath, json(request.schema))]);
-    const executable = await resolveCodexExecutable();
-    const args = ["exec", "--model", request.config.model, "--sandbox", "read-only", "--ephemeral", "--cd", request.staging_directory, "--output-schema", schemaPath, "--output-last-message", responsePath, "--config", 'approval_policy="never"', "--config", `model_reasoning_effort=${JSON.stringify(request.config.reasoning_effort)}`, request.prompt];
-    const execution: CandidateExecution = await runProcess(executable.path, args, request.staging_directory, request.config.timeout_ms, join(request.staging_directory, "stdout.log"), join(request.staging_directory, "stderr.log"));
-    const [stdout, stderr, response] = await Promise.all([readFile(join(request.staging_directory, "stdout.log"), "utf8").catch(() => ""), readFile(join(request.staging_directory, "stderr.log"), "utf8").catch(() => ""), readFile(responsePath, "utf8").catch(() => "")]);
-    return { started_at: execution.startedAt, completed_at: execution.completedAt, wall_clock_ms: execution.durationMs, exit_code: execution.exitCode, timeout: execution.timedOut, stdout, stderr, response_text: response, launch_error: execution.launchError ?? null, failure_classification: execution.failureKind ?? null, args: execution.args };
-  }
+  async adjudicate(request: JudgeRequest): Promise<JudgeExecution> { await mkdir(request.staging_directory, { recursive: true }); const packetPath = join(request.staging_directory, "masked-judge-input.json"), schemaPath = join(request.staging_directory, "judge-output-schema.json"), responsePath = join(request.staging_directory, "response.txt"); await Promise.all([writeFile(packetPath, json(request.packet)), writeFile(schemaPath, json(request.schema))]); const executable = await resolveCodexExecutable(); const args = ["exec", "--model", request.config.model, "--sandbox", "read-only", "--ephemeral", "--cd", request.staging_directory, "--output-schema", schemaPath, "--output-last-message", responsePath, "--config", 'approval_policy="never"', "--config", `model_reasoning_effort=${JSON.stringify(request.config.reasoning_effort)}`, request.prompt]; const execution: CandidateExecution = await runProcess(executable.path, args, request.staging_directory, request.config.timeout_ms, join(request.staging_directory, "stdout.log"), join(request.staging_directory, "stderr.log")); const [stdout, stderr, response] = await Promise.all([readFile(join(request.staging_directory, "stdout.log"), "utf8").catch(() => ""), readFile(join(request.staging_directory, "stderr.log"), "utf8").catch(() => ""), readFile(responsePath, "utf8").catch(() => "")]); return { started_at: execution.startedAt, completed_at: execution.completedAt, wall_clock_ms: execution.durationMs, exit_code: execution.exitCode, timeout: execution.timedOut, stdout, stderr, response_text: response, launch_error: execution.launchError ?? null, failure_classification: execution.failureKind ?? null, args: execution.args }; }
 }
 
-function schema(labels: string[], eligible: Set<string>): Record<string, Json> {
-  const criterion = { type: "object", additionalProperties: false, required: [...criteria], properties: Object.fromEntries(criteria.map((key) => [key, { enum: [...ordinal] }])) };
-  const byLabel = (entry: Json): Json => ({ type: "object", additionalProperties: false, required: labels, properties: Object.fromEntries(labels.map((label) => [label, entry])) });
-  return { type: "object", additionalProperties: false, required: ["schema_version", "verdict", "recommended_labels", "confidence", "ranking", "criteria_by_candidate", "strengths_by_candidate", "risks_by_candidate", "limitations", "summary"], properties: {
-    schema_version: { const: judgeSchemaVersion }, verdict: { enum: ["RECOMMENDATION", "TIE", "INCONCLUSIVE"] }, recommended_labels: { type: "array", items: { enum: [...eligible] }, uniqueItems: true }, confidence: { enum: ["low", "medium", "high"] },
-    ranking: { type: "array", items: { type: "object", additionalProperties: false, required: ["label", "rank", "tier", "rationale"], properties: { label: { enum: [...eligible] }, rank: { type: "integer", minimum: 1 }, tier: { enum: [...ordinal] }, rationale: { type: "string" } } }, uniqueItems: true },
-    criteria_by_candidate: byLabel(criterion), strengths_by_candidate: byLabel({ type: "array", items: { type: "string" } }), risks_by_candidate: byLabel({ type: "array", items: { type: "string" } }), limitations: { type: "array", items: { type: "string" } }, summary: { type: "string" }
-  } };
-}
-function prompt(labels: string[]): string { return `Evaluate labels ${labels.join(", ")} only. Deterministic hard gates are authoritative; failed or unavailable candidates are ineligible. Return only JSON matching schema ${judgeSchemaVersion}. Do not infer configuration identity or causal claims. Use ordinal criteria, no weighted score.`; }
-function eligibility(candidate: CandidatePacket): "eligible" | "excluded" { const gates = array(candidate.telemetry.hard_gates, "hard gates"); return gates.every((item) => object(item, "hard gate").status === "passed") ? "eligible" : "excluded"; }
-function repairPrompt(labels: string[], problem: string): string { return `${prompt(labels)} Repair only the JSON structure. Problem: ${problem}`; }
-function publicExecution(execution: JudgeExecution | null, staging: string): JudgeExecution | null {
-  if (!execution) return null;
-  const redact = (value: string): string => value.replaceAll(staging, "<path:judge-staging>");
-  return { ...execution, args: execution.args.map(redact), stdout: redact(execution.stdout), stderr: redact(execution.stderr), launch_error: execution.launch_error ? redact(execution.launch_error) : null };
-}
+function schema(labels: string[], eligible: Set<string>): Record<string, Json> { const criterion = { type: "object", additionalProperties: false, required: [...criteria], properties: Object.fromEntries(criteria.map((key) => [key, { enum: [...ordinal] }])) }, byLabel = (entry: Json): Json => ({ type: "object", additionalProperties: false, required: labels, properties: Object.fromEntries(labels.map((label) => [label, entry])) }); return { type: "object", additionalProperties: false, required: ["schema_version", "verdict", "recommended_labels", "confidence", "ranking", "criteria_by_candidate", "strengths_by_candidate", "risks_by_candidate", "limitations", "summary"], properties: { schema_version: { const: judgeSchemaVersion }, verdict: { enum: ["RECOMMENDATION", "TIE", "INCONCLUSIVE"] }, recommended_labels: { type: "array", items: { enum: [...eligible] }, uniqueItems: true }, confidence: { enum: ["low", "medium", "high"] }, ranking: { type: "array", items: { type: "object", additionalProperties: false, required: ["label", "rank", "tier", "rationale"], properties: { label: { enum: [...eligible] }, rank: { type: "integer", minimum: 1 }, tier: { enum: [...ordinal] }, rationale: { type: "string", maxLength: maxText } } } }, criteria_by_candidate: byLabel(criterion), strengths_by_candidate: byLabel({ type: "array", maxItems: maxList, items: { type: "string", maxLength: maxText } }), risks_by_candidate: byLabel({ type: "array", maxItems: maxList, items: { type: "string", maxLength: maxText } }), limitations: { type: "array", maxItems: maxList, items: { type: "string", maxLength: maxText } }, summary: { type: "string", maxLength: maxText } } }; }
+function prompt(labels: string[]): string { return `Evaluate opaque labels ${labels.join(", ")}. Deterministic hard gates are authoritative; excluded labels are not eligible. Return only schema ${judgeSchemaVersion} JSON. Do not infer identity or causal claims.`; }
+function eligibility(candidate: CandidatePacket): "eligible" | "excluded" { return array(candidate.telemetry.hard_gates, "hard gates").every((raw) => object(raw, "hard gate").status === "passed") ? "eligible" : "excluded"; }
+function safeExecution(execution: JudgeExecution | null, staging: string): JudgeExecution | null { if (!execution) return null; const redact = (value: string) => sanitizePaths(value).replaceAll(staging, "<path:judge-staging>"); return { ...execution, args: execution.args.map(redact), stdout: redact(execution.stdout), stderr: redact(execution.stderr), launch_error: execution.launch_error ? redact(execution.launch_error) : null }; }
+function repairRequest(labels: string[], eligible: Set<string>, original: string, errors: string[]): Record<string, Json> { return { instruction: "Repair structure only. Preserve substantive judgments. Return only JSON.", labels, strict_schema: schema(labels, eligible), validation_errors: errors.map(() => "response failed strict validation"), malformed_original_response: original }; }
+function parseSafe(response: string, labels: string[], eligible: Set<string>, run: LoadedRun): { verdict: Record<string, unknown> | null; error: string | null } { if (response.length > maxResponse) return { verdict: null, error: "response exceeded safe limit" }; try { ensureSafe(response, run.forbidden, run.directory); return { verdict: validateJudgeResponse(JSON.parse(response), labels, eligible, run.forbidden), error: null }; } catch { return { verdict: null, error: "response failed strict validation" }; } }
+function excludedGates(candidate: CandidatePacket): unknown[] { return array(candidate.telemetry.hard_gates, "hard gates").filter((raw) => object(raw, "hard gate").status !== "passed").map((raw) => { const gate = object(raw, "hard gate"); return { id: gate.id, status: gate.status, reason: gate.reason }; }); }
 
 export async function adjudicateRun(runDirectory: string, judge: JudgeAdapter, config: JudgeConfig = defaultJudgeConfig): Promise<Record<string, unknown>> {
-  if (config.model !== "gpt-5.6-sol" || !["low", "high"].includes(config.reasoning_effort)) throw new Error("judge must use gpt-5.6-sol with low or high reasoning");
-  const run = await loadPhase2Run(runDirectory);
-  if (await stat(join(run.directory, "evaluation.json")).then(() => true).catch(() => false)) throw new Error("completed adjudication already exists");
-  const { packet, identityMap } = buildJudgePacket(run);
-  const candidates = maskedCandidates(run);
-  const labels = candidates.map((candidate) => candidate.label);
-  const eligible = new Set(candidates.filter((candidate) => eligibility(candidate) === "eligible").map((candidate) => candidate.label));
-  const request = { schema_version: judgeSchemaVersion, config: { model: config.model, reasoning_effort: config.reasoning_effort, timeout_ms: config.timeout_ms }, labels, eligible_labels: [...eligible] };
-  let verdict: Record<string, unknown> | null = null;
-  let execution: JudgeExecution | null = null;
-  let repair: JudgeExecution | null = null;
-  let parseError: string | null = null;
-  if (eligible.size > 0) {
-    const staging = join(run.directory, ".judge-staging");
-    execution = await judge.adjudicate({ staging_directory: staging, packet, schema: schema(labels, eligible), prompt: prompt(labels), config });
-    if (!execution.timeout && execution.exit_code === 0 && !execution.launch_error) {
-      try { verdict = validateJudgeResponse(JSON.parse(execution.response_text), labels, eligible); } catch (error) { parseError = error instanceof Error ? error.message : String(error); repair = await judge.adjudicate({ staging_directory: staging, packet, schema: schema(labels, eligible), prompt: repairPrompt(labels, parseError), config }); if (!repair.timeout && repair.exit_code === 0 && !repair.launch_error) try { verdict = validateJudgeResponse(JSON.parse(repair.response_text), labels, eligible); } catch (repairError) { parseError = repairError instanceof Error ? repairError.message : String(repairError); } }
-    } else parseError = execution.failure_classification ?? "judge execution failed";
-  }
-  const outcome: EvaluationOutcome = eligible.size === 0 ? "NO_WINNER" : verdict ? verdict.verdict as JudgeVerdict : "INCONCLUSIVE";
-  const ranking = verdict ? array(verdict.ranking, "ranking") as Record<string, unknown>[] : [];
-  const evaluation = { schema_version: judgeSchemaVersion, outcome, candidates: candidates.map((candidate) => { const item = ranking.find((entry) => entry.label === candidate.label); return { candidate_id: candidate.id, label: candidate.label, eligibility: eligibility(candidate), hard_gate_status: object(candidate.telemetry.output, "output").hard_gate_status, rank: item?.rank ?? null, tier: item?.tier ?? null }; }), adjudication: verdict ?? { status: eligible.size === 0 ? "not_invoked_no_eligible_candidates" : "inconclusive", error: parseError } };
-  await Promise.all([
-    atomicWrite(join(run.directory, "identity-map.json"), { schema_version: judgeSchemaVersion, labels: identityMap }),
-    atomicWrite(join(run.directory, "masked-judge-input.json"), packet),
-    atomicWrite(join(run.directory, "judge-request.json"), request),
-    atomicWrite(join(run.directory, "judge-output-schema.json"), schema(labels, eligible)),
-    atomicWrite(join(run.directory, "judge-original-response.txt"), execution?.response_text ?? ""),
-    atomicWrite(join(run.directory, "judge-original-response.json"), execution ? safeJson(execution.response_text) : { status: "not_applicable" }),
-    atomicWrite(join(run.directory, "judge-repair-request.json"), repair ? { prompt: repairPrompt(labels, parseError ?? "invalid response") } : { status: "not_applicable" }),
-    atomicWrite(join(run.directory, "judge-repaired-response.txt"), repair?.response_text ?? ""),
-    atomicWrite(join(run.directory, "judge-repaired-response.json"), repair ? safeJson(repair.response_text) : { status: "not_applicable" }),
-    atomicWrite(join(run.directory, "judge-result.json"), { status: eligible.size === 0 ? "not_invoked_no_eligible_candidates" : verdict ? "completed" : "inconclusive", original: publicExecution(execution, join(run.directory, ".judge-staging")), repair: publicExecution(repair, join(run.directory, ".judge-staging")), error: parseError }),
-    atomicWrite(join(run.directory, "adjudication.json"), { schema_version: judgeSchemaVersion, labels, eligible_labels: [...eligible], verdict: verdict ?? null }),
-    atomicWrite(join(run.directory, "evaluation.json"), evaluation)
-  ]);
-  return evaluation;
+  if (config.model !== "gpt-5.6-sol" || !["low", "high"].includes(config.reasoning_effort)) throw new Error("judge must use gpt-5.6-sol with low or high reasoning"); const run = await loadPhase2Run(runDirectory); if (await stat(join(run.directory, "evaluation.json")).then(() => true).catch(() => false)) throw new Error("completed adjudication already exists"); const { packet, identityMap } = buildJudgePacket(run), candidates = maskedCandidates(run), labels = candidates.map((candidate) => candidate.label), eligible = new Set(candidates.filter((candidate) => eligibility(candidate) === "eligible").map((candidate) => candidate.label)); const request = { schema_version: judgeSchemaVersion, config: { model: config.model, reasoning_effort: config.reasoning_effort, timeout_ms: config.timeout_ms }, labels, eligible_labels: [...eligible] };
+  let execution: JudgeExecution | null = null, repair: JudgeExecution | null = null, verdict: Record<string, unknown> | null = null, error: string | null = null, repairArtifact: Record<string, Json> | { status: "not_applicable" } = { status: "not_applicable" };
+  if (eligible.size) { const staging = join(run.directory, ".judge-staging"); execution = await judge.adjudicate({ staging_directory: staging, packet, schema: schema(labels, eligible), prompt: prompt(labels), config }); if (!execution.timeout && execution.exit_code === 0 && !execution.launch_error) { const parsed = parseSafe(execution.response_text, labels, eligible, run); verdict = parsed.verdict; error = parsed.error; if (!verdict && error) { try { const repairData = repairRequest(labels, eligible, execution.response_text, [error]); ensureSafe(repairData, run.forbidden, run.directory); const repairPrompt = json(repairData); repairArtifact = { ...repairData, prompt: repairPrompt }; repair = await judge.adjudicate({ staging_directory: staging, packet, schema: schema(labels, eligible), prompt: repairPrompt, config }); if (!repair.timeout && repair.exit_code === 0 && !repair.launch_error) { const repaired = parseSafe(repair.response_text, labels, eligible, run); verdict = repaired.verdict; error = repaired.error; } } catch { error = "response violated safety policy"; } } } else error = "judge execution failed"; }
+  const outcome: EvaluationOutcome = !eligible.size ? "NO_WINNER" : verdict ? verdict.verdict as JudgeVerdict : "INCONCLUSIVE"; const ranking = verdict ? array(verdict.ranking, "ranking") as Record<string, unknown>[] : []; const ordered = [...candidates.filter((candidate) => eligibility(candidate) === "eligible").sort((a, b) => Number(ranking.find((item) => item.label === a.label)?.rank ?? Number.MAX_SAFE_INTEGER) - Number(ranking.find((item) => item.label === b.label)?.rank ?? Number.MAX_SAFE_INTEGER)), ...candidates.filter((candidate) => eligibility(candidate) === "excluded").sort((a, b) => a.label.localeCompare(b.label))]; const recommended = verdict ? array(verdict.recommended_labels, "recommended labels") as string[] : []; const evaluation = { schema_version: judgeSchemaVersion, outcome, recommended_candidate_id: outcome === "RECOMMENDATION" ? identityMap[recommended[0]] : null, tied_candidate_ids: outcome === "TIE" ? recommended.map((label) => identityMap[label]) : [], candidates: ordered.map((candidate) => { const item = ranking.find((entry) => entry.label === candidate.label); return { candidate_id: candidate.id, label: candidate.label, eligibility: eligibility(candidate), hard_gate_status: metric(object(candidate.telemetry.output, "output").hard_gate_status), semantic_rank: item?.rank ?? null, semantic_tier: item?.tier ?? null, exclusion_gates: eligibility(candidate) === "excluded" ? excludedGates(candidate) : [] }; }), adjudication: verdict ?? { status: !eligible.size ? "not_invoked_no_eligible_candidates" : "inconclusive", error } };
+  const responseArtifact = (value: string | undefined): string => { try { ensureSafe(value ?? "", run.forbidden, run.directory); return value ?? ""; } catch { return "<withheld: identity-or-path-policy>"; } };
+  await Promise.all([atomicWrite(join(run.directory, "identity-map.json"), { schema_version: judgeSchemaVersion, labels: identityMap }), atomicWrite(join(run.directory, "masked-judge-input.json"), packet), atomicWrite(join(run.directory, "judge-request.json"), request), atomicWrite(join(run.directory, "judge-output-schema.json"), schema(labels, eligible)), atomicWrite(join(run.directory, "judge-original-response.txt"), responseArtifact(execution?.response_text)), atomicWrite(join(run.directory, "judge-original-response.json"), execution ? safeJson(responseArtifact(execution.response_text)) : { status: "not_applicable" }), atomicWrite(join(run.directory, "judge-repair-request.json"), repairArtifact), atomicWrite(join(run.directory, "judge-repaired-response.txt"), responseArtifact(repair?.response_text)), atomicWrite(join(run.directory, "judge-repaired-response.json"), repair ? safeJson(responseArtifact(repair.response_text)) : { status: "not_applicable" }), atomicWrite(join(run.directory, "judge-result.json"), { status: !eligible.size ? "not_invoked_no_eligible_candidates" : verdict ? "completed" : "inconclusive", original: safeExecution(execution, join(run.directory, ".judge-staging")), repair: safeExecution(repair, join(run.directory, ".judge-staging")), error }), atomicWrite(join(run.directory, "adjudication.json"), { schema_version: judgeSchemaVersion, labels, eligible_labels: [...eligible], verdict: verdict ?? null }), atomicWrite(join(run.directory, "evaluation.json"), evaluation)]); return evaluation;
 }
 
 const safeJson = (value: string): unknown => { try { return JSON.parse(value); } catch { return { status: "malformed" }; } };
-export async function adjudicationDryRun(runDirectory: string, config: JudgeConfig = defaultJudgeConfig): Promise<Record<string, unknown>> {
-  if (config.model !== "gpt-5.6-sol" || !["low", "high"].includes(config.reasoning_effort)) throw new Error("judge must use gpt-5.6-sol with low or high reasoning");
-  const run = await loadPhase2Run(runDirectory); const { packet } = buildJudgePacket(run); const labels = (packet.candidates as Array<Record<string, Json>>).map((item) => String(item.label));
-  return { packet_valid: true, labels, model: config.model, reasoning_effort: config.reasoning_effort, command_shape: ["exec", "--model", config.model, "--sandbox", "read-only", "--ephemeral", "--output-schema", "<path:redacted>", "--config", 'approval_policy="never"'] };
-}
+export async function adjudicationDryRun(runDirectory: string, config: JudgeConfig = defaultJudgeConfig): Promise<Record<string, unknown>> { if (config.model !== "gpt-5.6-sol" || !["low", "high"].includes(config.reasoning_effort)) throw new Error("judge must use gpt-5.6-sol with low or high reasoning"); const run = await loadPhase2Run(runDirectory), { packet } = buildJudgePacket(run); return { packet_valid: true, labels: (packet.candidates as Array<Record<string, Json>>).map((item) => String(item.label)), model: config.model, reasoning_effort: config.reasoning_effort, packet_size: JSON.stringify(packet).length, packet_limit: object(packet.limits, "limits").packet_chars, command_shape: ["exec", "--model", config.model, "--sandbox", "read-only", "--ephemeral", "--output-schema", "<path:redacted>", "--config", 'approval_policy="never"'] }; }

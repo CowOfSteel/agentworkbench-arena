@@ -7,7 +7,7 @@ import { performance } from "node:perf_hooks";
 import { CandidateAdapter, CandidateExecution, argumentShape, openCodePermissionConfig, runProcess } from "./adapters";
 import { FractionalPriceAcceptance, validateFractionalPrice } from "./acceptance";
 import { Candidate, Trial } from "./trial";
-import { aggregateGateStatus, available, configurationHash, extractNativeTelemetry, GateStatus, Metric, telemetrySchemaVersion, trialSnapshot, unavailable } from "./telemetry";
+import { aggregateGateStatus, available, configurationHash, extractNativeTelemetry, GateStatus, Metric, taskContractArtifact, telemetrySchemaVersion, trialSnapshot, unavailable } from "./telemetry";
 
 const exec = promisify(execFile);
 const git = async (repository: string, args: string[]): Promise<string> => (await exec("git", args, { cwd: repository, shell: false })).stdout.trim();
@@ -206,12 +206,13 @@ export function interventionGate(policy: Trial["manualIntervention"], facts: Int
   return { id: "intervention_policy", status: "passed", reason: "no prohibited intervention was observed", observed_values, evidence_references: ["provenance.json", "raw-events.jsonl"] };
 }
 const portableRelative = (value: unknown): value is string => typeof value === "string" && value.length > 0 && !/^(?:[A-Za-z]:)?[\\/]/.test(value) && !value.split(/[\\/]/).includes("..");
-export function phase3PacketReady(packet: { telemetry: unknown; validation: unknown; artifactDirectory: unknown }): boolean {
+export function phase3PacketReady(packet: { telemetry: unknown; validation: unknown; artifactDirectory: unknown; taskContract?: unknown }): boolean {
   const telemetry = packet.telemetry as Record<string, unknown> | null;
   const validation = packet.validation as Record<string, unknown> | null;
   const provenance = telemetry?.provenance as Record<string, unknown> | undefined;
   const evidence = telemetry?.evidence_completeness as Record<string, unknown> | undefined;
-  return Boolean(telemetry && validation && telemetry.finalization_status === "complete" && Array.isArray(telemetry.hard_gates) && telemetry.hard_gates.length > 0 && evidence?.status === "complete" && Array.isArray(evidence.artifacts) && Array.isArray(validation.commands) && provenance?.task_contract_hash && provenance.configuration_hash && portableRelative(packet.artifactDirectory));
+  const contract = packet.taskContract as Record<string, unknown> | undefined;
+  return Boolean(telemetry && validation && telemetry.finalization_status === "complete" && Array.isArray(telemetry.hard_gates) && telemetry.hard_gates.length > 0 && evidence?.status === "complete" && Array.isArray(evidence.artifacts) && Array.isArray(validation.commands) && provenance?.task_contract_hash && provenance.configuration_hash && portableRelative(packet.artifactDirectory) && (contract === undefined || contract.task_contract_hash === provenance.task_contract_hash && typeof contract.objective === "string"));
 }
 async function candidatePacketReady(directory: string, relativeDirectory: string): Promise<boolean> {
   const [telemetry, validation] = await Promise.all([readFile(join(directory, "telemetry.json"), "utf8").then(JSON.parse).catch(() => null), readFile(join(directory, "validation.json"), "utf8").then(JSON.parse).catch(() => null)]);
@@ -342,7 +343,8 @@ export async function runTrial(trial: Trial, adapters: Map<string, CandidateAdap
   await mkdir(join(directory, "candidates"), { recursive: true });
   const snapshot = trialSnapshot(trial);
   const snapshotHash = createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
-  await writeFile(join(directory, "trial-snapshot.json"), JSON.stringify(snapshot, null, 2));
+  const contract = taskContractArtifact(trial);
+  await Promise.all([writeFile(join(directory, "trial-snapshot.json"), JSON.stringify(snapshot, null, 2)), writeFile(join(directory, "task-contract.json"), JSON.stringify(contract, null, 2))]);
   const candidates: CandidateResult[] = [];
   for (const candidate of trial.candidates) {
     const adapter = adapters.get(candidate.adapter);
@@ -351,7 +353,8 @@ export async function runTrial(trial: Trial, adapters: Map<string, CandidateAdap
   }
   const completedAt = new Date().toISOString();
   const candidatePackets = await Promise.all(candidates.map(async (result) => ({ result, artifactDirectory: `candidates/${result.candidateId}`, ready: await candidatePacketReady(result.directory, `candidates/${result.candidateId}`) })));
-  const manifest = { schema_version: telemetrySchemaVersion, run_id: basename(directory), trial_id: trial.id, comparison_mode: "practical-configuration-comparison", run_status: "completed", started_at: startedAt, completed_at: completedAt, total_pipeline_ms: Math.round(performance.now() - started), arena_git_commit: await git(process.cwd(), ["rev-parse", "HEAD"]).catch(() => null), baseline_commit: baseline, task_contract_hash: taskContractHash(trial.taskContract), normalized_trial_snapshot_hash: snapshotHash, candidate_count: trial.candidates.length, candidates: candidatePackets.map(({ result, artifactDirectory, ready }) => ({ candidate_id: result.candidateId, configuration_hash: configurationHash(trial.candidates.find((candidate) => candidate.id === result.candidateId)!, trial), artifact_directory: artifactDirectory, completion_status: result.execution.failureKind ?? (result.execution.exitCode === 0 ? "completed" : "failed"), hard_gate_status: result.hardGateStatus ?? "unavailable", evidence_completeness: `${artifactDirectory}/telemetry.json`, deterministic_packet_ready: ready })), manifest_finalization_status: "complete", phase_3_readiness: candidatePackets.every((candidate) => candidate.ready) ? "ready_for_audit" : "not_ready" };
+  const contractReady = contract.task_contract_hash === taskContractHash(trial.taskContract);
+  const manifest = { schema_version: telemetrySchemaVersion, run_id: basename(directory), trial_id: trial.id, comparison_mode: "practical-configuration-comparison", run_status: "completed", started_at: startedAt, completed_at: completedAt, total_pipeline_ms: Math.round(performance.now() - started), arena_git_commit: await git(process.cwd(), ["rev-parse", "HEAD"]).catch(() => null), baseline_commit: baseline, task_contract_hash: taskContractHash(trial.taskContract), task_contract_artifact: "task-contract.json", normalized_trial_snapshot_hash: snapshotHash, candidate_count: trial.candidates.length, candidates: candidatePackets.map(({ result, artifactDirectory, ready }) => ({ candidate_id: result.candidateId, configuration_hash: configurationHash(trial.candidates.find((candidate) => candidate.id === result.candidateId)!, trial), artifact_directory: artifactDirectory, completion_status: result.execution.failureKind ?? (result.execution.exitCode === 0 ? "completed" : "failed"), hard_gate_status: result.hardGateStatus ?? "unavailable", evidence_completeness: `${artifactDirectory}/telemetry.json`, deterministic_packet_ready: ready })), manifest_finalization_status: "complete", phase_3_readiness: contractReady && candidatePackets.every((candidate) => candidate.ready) ? "ready_for_audit" : "not_ready" };
   await Promise.all([
     writeFile(join(directory, "manifest.json"), JSON.stringify(manifest, null, 2)),
     writeFile(join(directory, "run.json"), JSON.stringify({ compatibility: "secondary; use manifest.json", trial_id: trial.id, baseline, candidate_count: trial.candidates.length, task_contract_hash: taskContractHash(trial.taskContract), candidates: candidates.map((candidate) => ({ id: candidate.candidateId, directory: basename(candidate.directory) })) }, null, 2))

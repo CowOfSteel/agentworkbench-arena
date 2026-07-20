@@ -38,7 +38,7 @@ codex login
 
 ## Deterministic artifacts
 
-Each candidate receives `raw-telemetry.json`, `telemetry.json`, and `validation.json`; every run receives `manifest.json` and `trial-snapshot.json`. Raw events remain authoritative. `telemetry.json` uses `{ value, availability, source }`: unavailable data is `null`, while zero is emitted only when Arena establishes it.
+Each candidate receives `raw-telemetry.json`, `telemetry.json`, and `validation.json`; every run receives `manifest.json`, `trial-snapshot.json`, and a hash-checked `task-contract.json`. The task contract preserves the safe objective and contract policies needed for Phase 3; historical runs without it remain valid Phase 2 evidence but cannot be adjudicated. Raw events remain authoritative. `telemetry.json` uses `{ value, availability, source }`: unavailable data is `null`, while zero is emitted only when Arena establishes it.
 
 Candidate process duration is measured with a monotonic clock across all attempts. Validation duration is measured separately and never attributed to candidate execution. The manifest measures the full Arena pipeline through finalization. Native timing and usage remain source-native facts in `raw-telemetry.json`.
 
@@ -48,7 +48,7 @@ The ten hard gates are explicit in each `telemetry.json`; an unavailable gate ca
 
 ## Phase 3 adjudication
 
-`arena adjudicate <run-directory> --dry-run` validates a finalized packet, constructs no candidate worktrees, and uses no model quota. A real adjudication uses read-only, ephemeral Codex execution with `approval_policy="never"`; it defaults to `gpt-5.6-sol` at Low reasoning. `--reasoning high` is reserved for an explicit human final-stabilization run; efforts above High are rejected. The judge sees only labels and a bounded allowlisted packet. It writes masked input, execution/repair evidence, and `evaluation.json`, never a Phase 4 report or `recommendation.yml`.
+`arena adjudicate <run-directory> --dry-run` validates a finalized packet, constructs no candidate worktrees, and uses no model quota. A real adjudication uses read-only, ephemeral Codex execution with `approval_policy="never"`; it defaults to `gpt-5.6-sol` at Low reasoning. `--reasoning high` is reserved for an explicit human final-stabilization run; efforts above High are rejected. The judge sees only labels and a bounded allowlisted packet: real identities, provenance, configuration hashes, machine paths, and unsafe validation output are rejected. It writes masked input, execution/repair evidence, and `evaluation.json`, never a Phase 4 report or `recommendation.yml`.
 
 ## Phase boundaries
 
