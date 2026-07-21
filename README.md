@@ -10,11 +10,10 @@ Arena brings native configuration execution, user-owned repository tasks, determ
 
 ## See the result first
 
-- [Open the committed sanitized report](examples/demo-run/report.html).
 - The public sample is live at <https://cowofsteel.github.io/agentworkbench-arena/>; the local report remains the offline path.
-- The committed two-candidate sample is a complete, verified fallback. It requires no native credentials and remains the safe public sample because the flagship sanitizer rejected unsafe source material.
+- The committed two-candidate sample is a complete, verified fallback. It requires no native credentials and remains the safe public sample because the flagship sanitizer rejected unsafe source material. It is to highlight the different harnesses being used.
 
-The final human-controlled six-configuration trial completed successfully. Three candidates passed deterministic hard gates, and GPT-5.6 Sol High recommended Terra High through Codex with high confidence. The flagship source report remains private because the sanitizer rejected an absolute-path or sensitive-source condition; the repository therefore retains the independently verified sanitized proof as its safe zero-credential public demo.
+The final human-controlled six-configuration trial completed successfully. Three candidates passed deterministic hard gates, and GPT-5.6 Sol High recommended Terra High through Codex with high confidence. The flagship source report remains private because the sanitizer rejected an absolute-path or sensitive-source condition; the repository therefore retains the independently verified sanitized proof as its safe zero-credential public demo. Still some kinks on that end to work out, as I do believe the Sol adjudication was simply "taking too long" for my time outs, and the deadline submission was coming up.
 
 ## Zero-credential judge path
 
