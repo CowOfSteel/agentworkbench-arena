@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { CandidateAdapter, CodexExecAdapter, OpenCodeRunAdapter } from "./adapters";
 import { adjudicationDryRun, adjudicateRun, CodexJudgeAdapter, defaultJudgeConfig } from "./adjudication";
 import { runDiagnostic, runTrial } from "./runner";
