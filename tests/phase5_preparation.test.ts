@@ -14,6 +14,7 @@ import { topologyFromTrial } from "../src/topology";
 import { doctorTrial } from "../src/doctor";
 import { verifyClean } from "../src/clean-verify";
 import { sanitizeSample } from "../src/sanitize";
+import { generateReport } from "../src/report";
 import { parse } from "yaml";
 
 const root = resolve(__dirname, "..", "..");
@@ -92,6 +93,7 @@ test("sample sanitation is deterministic, verifies output, and preserves the sou
   const temporary = await mkdtemp(join(tmpdir(), "arena-sanitize-")), source = join(temporary, "source"), output = join(temporary, "sample");
   try {
     await cp(resolve(root, "examples", "demo-run"), source, { recursive: true });
+    await generateReport(source);
     const before = await readFile(join(source, "manifest.json"), "utf8");
     const first = await sanitizeSample(source, output), report = await readFile(join(output, "report.html"), "utf8");
     assert.equal(first.report, "report.html"); assert.match(report, /Arena static product report/); assert.equal(await readFile(join(source, "manifest.json"), "utf8"), before);
