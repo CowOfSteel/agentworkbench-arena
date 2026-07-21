@@ -6,7 +6,7 @@ import { basename, delimiter, dirname, join, relative, resolve } from "node:path
 import { performance } from "node:perf_hooks";
 import { CandidateAdapter, CandidateExecution, argumentShape, openCodePermissionConfig, runProcess } from "./adapters";
 import { AcceptanceResult, validateConfiguredAcceptance, validateFractionalPrice } from "./acceptance";
-import { Candidate, Trial } from "./trial";
+import { Candidate, effectiveDiagnosticTimeoutMs, Trial } from "./trial";
 import { aggregateGateStatus, available, candidateConfiguration, configurationHash, extractNativeTelemetry, GateStatus, Metric, taskContractArtifact, telemetrySchemaVersion, trialSnapshot, unavailable } from "./telemetry";
 
 const exec = promisify(execFile);
@@ -20,6 +20,20 @@ export interface CandidateAttemptResult { attempt: number; directory: string; ex
 export interface CandidateResult { candidateId: string; directory: string; execution: CandidateExecution; retryCount: number; attempts: CandidateAttemptResult[]; hardGateStatus?: "passed" | "failed" | "unavailable"; }
 export interface RunResult { directory: string; candidates: CandidateResult[]; }
 export interface DiagnosticResult { directory: string; candidate: CandidateResult; passed: boolean; diagnosticPath: string; }
+export type DiagnosticFailureClassification = "passed" | "timeout_after_marker" | "timeout_before_marker" | "launch_or_transport_failure" | "nonzero_process_exit" | "execution_failure" | "marker_mismatch" | "unexpected_path_changes" | "forbidden_path_changes" | "validation_side_effects";
+
+export interface DiagnosticAssessment {
+  passed: boolean;
+  failureClassification: DiagnosticFailureClassification;
+  failureReasons: DiagnosticFailureClassification[];
+  marker: boolean;
+  cleanTermination: boolean;
+  observedPaths: string[];
+  unexpectedPaths: string[];
+  unsafeObservedPathCount: number;
+  forbiddenPathChanges: string[];
+  unsafeForbiddenPathCount: number;
+}
 
 interface WorktreeStatus {
   git_status: string;
@@ -364,6 +378,53 @@ export async function runTrial(trial: Trial, adapters: Map<string, CandidateAdap
   return { directory, candidates };
 }
 
+const safeDiagnosticPath = (value: string): string | null => {
+  const normalized = value.replace(/\\/g, "/");
+  return /^(?:[A-Za-z]:|\/|\\)/.test(normalized) || normalized.split("/").some((part) => !part || part === "." || part === "..") ? null : normalized;
+};
+
+export function assessDiagnostic(input: {
+  execution: CandidateExecution;
+  marker: boolean;
+  expectedPath: string;
+  observedPaths: string[];
+  forbiddenPathChanges: string[];
+  validationSideEffects: boolean;
+}): DiagnosticAssessment {
+  const safePaths = (paths: string[]) => {
+    const normalized = paths.map(safeDiagnosticPath);
+    return { paths: [...new Set(normalized.filter((path): path is string => path !== null))].sort(), unsafe: normalized.filter((path) => path === null).length };
+  };
+  const observed = safePaths(input.observedPaths);
+  const forbidden = safePaths(input.forbiddenPathChanges);
+  const unexpectedPaths = observed.paths.filter((path) => path !== input.expectedPath);
+  const exactChange = observed.unsafe === 0 && observed.paths.length === 1 && observed.paths[0] === input.expectedPath;
+  const timedOut = input.execution.timedOut || input.execution.failureKind === "timeout";
+  const launchOrTransport = input.execution.failureKind === "launch" || input.execution.failureKind === "transport";
+  const cleanTermination = input.execution.exitCode === 0 && !timedOut && !input.execution.failureKind;
+  const reasons: DiagnosticFailureClassification[] = [];
+  if (timedOut) reasons.push(input.marker ? "timeout_after_marker" : "timeout_before_marker");
+  else if (launchOrTransport) reasons.push("launch_or_transport_failure");
+  else if (input.execution.exitCode !== 0) reasons.push("nonzero_process_exit");
+  else if (input.execution.failureKind) reasons.push("execution_failure");
+  if (!exactChange) reasons.push("unexpected_path_changes");
+  if (forbidden.paths.length || forbidden.unsafe) reasons.push("forbidden_path_changes");
+  if (input.validationSideEffects) reasons.push("validation_side_effects");
+  if (!input.marker) reasons.push("marker_mismatch");
+  return {
+    passed: reasons.length === 0,
+    failureClassification: reasons[0] ?? "passed",
+    failureReasons: reasons,
+    marker: input.marker,
+    cleanTermination,
+    observedPaths: observed.paths,
+    unexpectedPaths,
+    unsafeObservedPathCount: observed.unsafe,
+    forbiddenPathChanges: forbidden.paths,
+    unsafeForbiddenPathCount: forbidden.unsafe
+  };
+}
+
 export async function runDiagnostic(trial: Trial, candidateId: string, adapters: Map<string, CandidateAdapter>, outputDirectory?: string): Promise<DiagnosticResult> {
   const candidate = trial.candidates.find((item) => item.id === candidateId);
   if (!candidate) throw new Error(`unknown candidate: ${candidateId}`);
@@ -375,7 +436,8 @@ export async function runDiagnostic(trial: Trial, candidateId: string, adapters:
   await mkdir(join(directory, "candidates"), { recursive: true });
   const probe = trial.diagnosticProbe ?? { path: "fixtures/bounded-inventory/src/arena-write-probe.txt", content: "phase1-write-probe\n" };
   const taskContract = `Create only ${probe.path} containing exactly the supplied content, then terminate.\n\n${probe.content}`;
-  const diagnosticTrial = { ...trial, timeoutMs: Math.min(trial.timeoutMs, 60_000) };
+  const diagnosticTimeoutMs = effectiveDiagnosticTimeoutMs(trial);
+  const diagnosticTrial = { ...trial, timeoutMs: diagnosticTimeoutMs };
   const result = await candidateRun(diagnosticTrial, candidate, repository, baseline, directory, adapter, { taskContract, validationCommands: [], acceptance: false });
   const [marker, record, status] = await Promise.all([
     readFile(join(result.directory, "worktree", ...probe.path.split("/")), "utf8").catch(() => undefined),
@@ -383,12 +445,36 @@ export async function runDiagnostic(trial: Trial, candidateId: string, adapters:
     readFile(join(result.directory, "pre-validation-status.json"), "utf8").then((text) => JSON.parse(text) as Pick<WorktreeStatus, "changed_paths" | "tracked_changes" | "untracked_paths" | "ignored_paths">)
   ]);
   const expectedPath = probe.path.replace(/\\/g, "/");
-  const observedPaths = [...new Set([status.changed_paths, status.tracked_changes, status.untracked_paths, status.ignored_paths].flat().map((path) => path.replace(/\\/g, "/")))].sort();
-  const unexpectedPaths = observedPaths.filter((path) => path !== expectedPath);
-  const exactChange = observedPaths.length === 1 && observedPaths[0] === expectedPath;
-  const cleanTermination = result.execution.exitCode === 0 && !result.execution.timedOut && !result.execution.failureKind;
-  const passed = marker === probe.content && cleanTermination && exactChange && record.forbidden_path_changes.length === 0 && !record.validation_side_effects;
+  const assessment = assessDiagnostic({
+    execution: result.execution,
+    marker: marker === probe.content,
+    expectedPath,
+    observedPaths: [status.changed_paths, status.tracked_changes, status.untracked_paths, status.ignored_paths].flat(),
+    forbiddenPathChanges: record.forbidden_path_changes,
+    validationSideEffects: record.validation_side_effects
+  });
   const diagnosticPath = join(directory, "diagnostic.json");
-  await writeFile(diagnosticPath, JSON.stringify({ candidate_id: candidate.id, baseline, passed, probe_path: expectedPath, marker: marker === probe.content, clean_termination: cleanTermination, observed_paths: observedPaths, unexpected_paths: unexpectedPaths, forbidden_path_changes: record.forbidden_path_changes, validation_side_effects: record.validation_side_effects }, null, 2));
-  return { directory, candidate: result, passed, diagnosticPath };
+  await writeFile(diagnosticPath, JSON.stringify({
+    candidate_id: candidate.id,
+    baseline,
+    diagnostic_timeout_ms: diagnosticTimeoutMs,
+    attempt_count: result.attempts.length,
+    retry_count: result.retryCount,
+    passed: assessment.passed,
+    failure_classification: assessment.failureClassification,
+    failure_reasons: assessment.failureReasons,
+    probe_path: expectedPath,
+    marker: assessment.marker,
+    clean_termination: assessment.cleanTermination,
+    process_exit_code: result.execution.exitCode,
+    timeout: result.execution.timedOut,
+    execution_failure_kind: result.execution.failureKind ?? null,
+    observed_paths: assessment.observedPaths,
+    unexpected_paths: assessment.unexpectedPaths,
+    unsafe_observed_path_count: assessment.unsafeObservedPathCount,
+    forbidden_path_changes: assessment.forbiddenPathChanges,
+    unsafe_forbidden_path_count: assessment.unsafeForbiddenPathCount,
+    validation_side_effects: record.validation_side_effects
+  }, null, 2));
+  return { directory, candidate: result, passed: assessment.passed, diagnosticPath };
 }

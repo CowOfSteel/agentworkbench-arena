@@ -26,6 +26,9 @@ export interface Candidate {
 
 export interface DiagnosticProbe { path: string; content: string; }
 
+export const defaultDiagnosticTimeoutCapMs = 180_000;
+export const maximumDiagnosticTimeoutMs = 900_000;
+
 export interface Trial {
   id: string;
   repository: string;
@@ -42,6 +45,8 @@ export interface Trial {
   manualIntervention: "forbidden";
   provenance: Record<string, unknown>;
   diagnosticProbe?: DiagnosticProbe;
+  /** Parsed trials always set this; optional keeps programmatic legacy trials compatible. */
+  diagnosticTimeoutMs?: number;
   candidates: Candidate[];
 }
 
@@ -134,6 +139,11 @@ export function validateTrial(value: unknown): Trial {
   if (new Set(normalizedCandidateIds).size !== parsedCandidates.length) throw new Error("candidate ids must be unique case-insensitively");
   const timeoutMs = raw.timeout_ms;
   if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error("timeout_ms must be positive");
+  const diagnosticTimeoutRaw = raw.diagnostic_timeout_ms;
+  if (diagnosticTimeoutRaw !== undefined && (typeof diagnosticTimeoutRaw !== "number" || !Number.isInteger(diagnosticTimeoutRaw) || diagnosticTimeoutRaw <= 0 || diagnosticTimeoutRaw > maximumDiagnosticTimeoutMs || diagnosticTimeoutRaw > timeoutMs)) {
+    throw new Error(`diagnostic_timeout_ms must be a positive integer no greater than ${maximumDiagnosticTimeoutMs} and timeout_ms`);
+  }
+  const diagnosticTimeoutMs = diagnosticTimeoutRaw === undefined ? Math.min(timeoutMs, defaultDiagnosticTimeoutCapMs) : diagnosticTimeoutRaw as number;
   const validationTimeoutMs = raw.validation_timeout_ms;
   if (typeof validationTimeoutMs !== "number" || !Number.isFinite(validationTimeoutMs) || validationTimeoutMs <= 0) throw new Error("validation_timeout_ms must be positive");
   const dependencyPolicy = raw.dependency_policy;
@@ -144,10 +154,14 @@ export function validateTrial(value: unknown): Trial {
   return {
     id: slug(raw.id, "id"), repository: text(raw.repository, "repository"), baselineRef: text(raw.baseline_ref, "baseline_ref"),
     taskContract: text(raw.task_contract, "task_contract"), allowedPaths,
-    forbiddenPaths, validationCommands: commands as string[][], acceptanceCommand, diagnosticProbe,
+    forbiddenPaths, validationCommands: commands as string[][], acceptanceCommand, diagnosticProbe, diagnosticTimeoutMs,
     timeoutMs, validationTimeoutMs, dependencyPolicy, maxLaunchTransportRetries: retries, manualIntervention: "forbidden",
     provenance: object(raw.provenance, "provenance"), candidates: parsedCandidates
   };
+}
+
+export function effectiveDiagnosticTimeoutMs(trial: Trial): number {
+  return trial.diagnosticTimeoutMs ?? Math.min(trial.timeoutMs, defaultDiagnosticTimeoutCapMs);
 }
 
 export async function loadTrial(path: string): Promise<Trial> {

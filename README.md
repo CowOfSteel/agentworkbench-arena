@@ -110,6 +110,8 @@ git push origin phase5-concurrency-scheduler-baseline
 
 `arena doctor <trial.yml>` reports adapter, per-candidate, and provider-route readiness without invoking a coding model. It rejects unresolved placeholders and unsafe OpenCode inline configuration composition. A declared OpenCode variant is `declared_unverified` until a bounded diagnostic proves provider acceptance. `arena sanitize-sample <verified-run> <output>` creates a field-allowlisted, scanned derivative without changing the verified source run.
 
+Diagnostics use `diagnostic_timeout_ms` when declared (a positive integer no greater than both 900,000 ms and `timeout_ms`); otherwise Arena uses the smaller of the candidate timeout and 180,000 ms. The value is finite, never changes a real candidate-run timeout, and a written probe still fails unless its process exits cleanly with no other changes. For the Phase 5 local trial add `diagnostic_timeout_ms: 180000` without committing the local YAML.
+
 See [the Phase 5 runbook](docs/PHASE5-RUNBOOK.md) for offline sample mode, live prerequisites, the exact human-only flagship sequence, privacy limits, Pages enablement, and repository-access checks. See [environment resolution](docs/PHASE5-ENVIRONMENT-RESOLUTION.md) for the nonsecret identifiers established locally.
 
 Phase 1 contains the fixture, YAML trial schema, Codex and OpenCode native adapters, sequential worktree runner, and raw evidence preservation. Candidate count is configuration data: the first trial has six candidates, while adding a seventh changes only the trial file.

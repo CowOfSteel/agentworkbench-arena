@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { parse } from "yaml";
 import { CandidateAdapter, CandidateRequest, CandidateExecution, classifyFailure, CodexExecAdapter, codexArgs, executableVersion, extractOpenCodeText, openCodeArgs, openCodePermissionConfig, resolveCodexExecutable, runProcess, sanitizeExecutablePath } from "../src/adapters";
 import { validateFractionalPrice } from "../src/acceptance";
-import { runDiagnostic, runTrial } from "../src/runner";
+import { assessDiagnostic, runDiagnostic, runTrial } from "../src/runner";
 import { Candidate, loadTrial, validateTrial } from "../src/trial";
 
 const git = (cwd: string, args: string[]) => execFileSync("git", args, { cwd, encoding: "utf8" });
@@ -392,6 +392,64 @@ class ExtraProbeAdapter extends ProbeAdapter {
   }
 }
 
+class CapturingProbeAdapter extends ProbeAdapter {
+  timeoutMs = 0;
+  async execute(request: CandidateRequest): Promise<CandidateExecution> {
+    this.timeoutMs = request.timeoutMs;
+    return super.execute(request);
+  }
+}
+
+class RetryProbeAdapter extends ProbeAdapter {
+  calls = 0;
+  async execute(request: CandidateRequest): Promise<CandidateExecution> {
+    this.calls += 1;
+    if (this.calls > 1) return super.execute(request);
+    await Promise.all([writeFile(join(request.artifactDirectory, "stdout.log"), "transport\n"), writeFile(join(request.artifactDirectory, "stderr.log"), "")]);
+    return { args: ["fake"], startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:00:00.001Z", durationMs: 1, exitCode: 1, timedOut: false, failureKind: "transport", launchError: "SUPER_SECRET_NEVER_SERIALIZE C:\\Users\\account-123" };
+  }
+}
+
+class WrongMarkerProbeAdapter extends ProbeAdapter {
+  calls = 0;
+  async execute(request: CandidateRequest): Promise<CandidateExecution> {
+    this.calls += 1;
+    await super.execute(request);
+    await writeFile(join(request.worktree, "fixtures", "bounded-inventory", "src", "arena-write-probe.txt"), "wrong\n");
+    return { args: ["fake"], startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:00:00.001Z", durationMs: 1, exitCode: 0, timedOut: false };
+  }
+}
+
+class TimeoutAfterMarkerProbeAdapter extends ProbeAdapter {
+  async execute(request: CandidateRequest): Promise<CandidateExecution> {
+    await super.execute(request);
+    return { args: ["fake"], startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:03:00.001Z", durationMs: 180_001, exitCode: 1, timedOut: true, failureKind: "timeout" };
+  }
+}
+
+test("diagnostic timeout policy is bounded, deterministic, and backward compatible", async () => {
+  const raw = parse(await readFile(join(process.cwd(), "examples", "bounded-fix", "trial.yml"), "utf8")) as Record<string, unknown>;
+  raw.timeout_ms = 900_000;
+  assert.equal(validateTrial(raw).diagnosticTimeoutMs, 180_000);
+  raw.diagnostic_timeout_ms = 180_000;
+  assert.equal(validateTrial(raw).diagnosticTimeoutMs, 180_000);
+  raw.diagnostic_timeout_ms = 900_001;
+  assert.throws(() => validateTrial(raw), /diagnostic_timeout_ms/);
+  raw.diagnostic_timeout_ms = 900_000;
+  raw.timeout_ms = 899_999;
+  assert.throws(() => validateTrial(raw), /diagnostic_timeout_ms/);
+});
+
+test("diagnostic assessment keeps timeout and strict failure causes distinct", () => {
+  const base = { args: ["fake"], startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:00:00.001Z", durationMs: 1, exitCode: 1, timedOut: true, failureKind: "timeout" as const };
+  assert.equal(assessDiagnostic({ execution: base, marker: true, expectedPath: "src/probe.txt", observedPaths: ["src/probe.txt"], forbiddenPathChanges: [], validationSideEffects: false }).failureClassification, "timeout_after_marker");
+  assert.equal(assessDiagnostic({ execution: base, marker: false, expectedPath: "src/probe.txt", observedPaths: [], forbiddenPathChanges: [], validationSideEffects: false }).failureClassification, "timeout_before_marker");
+  const clean = { ...base, exitCode: 0, timedOut: false, failureKind: undefined };
+  assert.equal(assessDiagnostic({ execution: clean, marker: true, expectedPath: "src/probe.txt", observedPaths: ["src/probe.txt", "src/extra.txt"], forbiddenPathChanges: [], validationSideEffects: false }).failureClassification, "unexpected_path_changes");
+  assert.equal(assessDiagnostic({ execution: clean, marker: true, expectedPath: "src/probe.txt", observedPaths: ["src/probe.txt"], forbiddenPathChanges: ["forbidden.txt"], validationSideEffects: false }).failureClassification, "forbidden_path_changes");
+  assert.equal(assessDiagnostic({ execution: clean, marker: true, expectedPath: "src/probe.txt", observedPaths: ["src/probe.txt"], forbiddenPathChanges: [], validationSideEffects: true }).failureClassification, "validation_side_effects");
+});
+
 test("diagnostic records a bounded successful write probe", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "arena-diagnostic-"));
   const repository = await makeRepository(temporary);
@@ -401,6 +459,60 @@ test("diagnostic records a bounded successful write probe", async () => {
     const result = await runDiagnostic(trial, "one", new Map([["codex-exec", new ProbeAdapter()]]), join(temporary, "output"));
     assert.equal(result.passed, true);
     assert.equal(JSON.parse(await readFile(result.diagnosticPath, "utf8")).marker, true);
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("diagnostic forwards its finite configured timeout without a 60-second clamp", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-diagnostic-timeout-"));
+  const repository = await makeRepository(temporary);
+  try {
+    const trial = { ...makeTrial(repository), diagnosticTimeoutMs: 180_000 };
+    trial.allowedPaths.push("fixtures/bounded-inventory/src");
+    const adapter = new CapturingProbeAdapter();
+    const result = await runDiagnostic(trial, "one", new Map([["codex-exec", adapter]]), join(temporary, "output"));
+    assert.equal(result.passed, true);
+    assert.equal(adapter.timeoutMs, 180_000);
+    assert.equal(JSON.parse(await readFile(result.diagnosticPath, "utf8")).diagnostic_timeout_ms, 180_000);
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("diagnostic records timeout after an exact marker as a failure", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-diagnostic-timeout-marker-"));
+  const repository = await makeRepository(temporary);
+  try {
+    const trial = makeTrial(repository);
+    trial.allowedPaths.push("fixtures/bounded-inventory/src");
+    const result = await runDiagnostic(trial, "one", new Map([["codex-exec", new TimeoutAfterMarkerProbeAdapter()]]), join(temporary, "output"));
+    const diagnostic = JSON.parse(await readFile(result.diagnosticPath, "utf8"));
+    assert.equal(result.passed, false); assert.equal(diagnostic.marker, true); assert.equal(diagnostic.failure_classification, "timeout_after_marker");
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("diagnostic retries only transport failures and keeps diagnostic evidence safe", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-diagnostic-retry-"));
+  const repository = await makeRepository(temporary);
+  try {
+    const trial = makeTrial(repository);
+    trial.allowedPaths.push("fixtures/bounded-inventory/src");
+    const adapter = new RetryProbeAdapter();
+    const result = await runDiagnostic(trial, "one", new Map([["codex-exec", adapter]]), join(temporary, "output"));
+    const diagnostic = await readFile(result.diagnosticPath, "utf8");
+    assert.equal(result.passed, true); assert.equal(adapter.calls, 2);
+    assert.match(diagnostic, /"attempt_count": 2/); assert.match(diagnostic, /"retry_count": 1/);
+    assert.doesNotMatch(diagnostic, /SUPER_SECRET_NEVER_SERIALIZE|C:\\Users|account-123/);
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("diagnostic does not retry marker or semantic failures", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-diagnostic-semantic-"));
+  const repository = await makeRepository(temporary);
+  try {
+    const trial = makeTrial(repository);
+    trial.allowedPaths.push("fixtures/bounded-inventory/src");
+    const adapter = new WrongMarkerProbeAdapter();
+    const result = await runDiagnostic(trial, "one", new Map([["codex-exec", adapter]]), join(temporary, "output"));
+    const diagnostic = JSON.parse(await readFile(result.diagnosticPath, "utf8"));
+    assert.equal(result.passed, false); assert.equal(adapter.calls, 1); assert.equal(diagnostic.failure_classification, "marker_mismatch");
   } finally { await rm(temporary, { recursive: true, force: true }); }
 });
 

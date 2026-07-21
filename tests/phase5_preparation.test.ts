@@ -9,7 +9,7 @@ import { validateConfiguredAcceptance } from "../src/acceptance";
 import { responseCharacterLimit } from "../src/adjudication";
 import { previewTrial } from "../src/preview";
 import { configurationHash, reasoningProvenance, trialSnapshot } from "../src/telemetry";
-import { loadTrial, validateTrial } from "../src/trial";
+import { validateTrial } from "../src/trial";
 import { topologyFromTrial } from "../src/topology";
 import { doctorTrial } from "../src/doctor";
 import { runCleanCommand, verifyClean } from "../src/clean-verify";
@@ -20,6 +20,7 @@ import { parse } from "yaml";
 
 const root = resolve(__dirname, "..", "..");
 const request = (candidate: any) => ({ candidate, worktree: "worktree", artifactDirectory: "artifacts", prompt: "task", timeoutMs: 1_000 });
+const committedFlagship = () => execFileSync("git", ["show", "HEAD:examples/concurrency-scheduler-phase5.yml"], { cwd: root, encoding: "utf8" });
 
 test("native effort fields preserve harness literals, conflicts, mapping, snapshots, and topology", async () => {
   const base = { id: "one", adapter: "codex-exec" as const, harness: "codex", model: "gpt-5.6-luna", nativeReasoningEffort: "xhigh", displayName: "Luna Extra High via Codex", displayVariant: "Extra High", providerRoute: "codex-authenticated" };
@@ -33,18 +34,22 @@ test("native effort fields preserve harness literals, conflicts, mapping, snapsh
   assert.equal((trialSnapshot(trial).candidates as any)[0].display_name, "Luna Extra High via Codex");
   assert.throws(() => validateTrial({ ...raw, candidates: [{ ...raw.candidates[0], id: "bad", adapter_options: { config_overrides: { model_reasoning_effort: "high" } } }, { ...raw.candidates[1], id: "other" }] }), /conflicts/);
   const topology = topologyFromTrial(trial); assert.ok(topology.varied_dimensions.some((item) => item.dimension === "provider_route")); assert.equal(topology.varied_dimensions.some((item) => item.dimension === "attention"), false);
+  const defaultDiagnostic = validateTrial({ ...raw, timeout_ms: 1_000 });
+  const configuredDiagnostic = validateTrial({ ...raw, timeout_ms: 1_000, diagnostic_timeout_ms: 500 });
+  assert.equal(trialSnapshot(configuredDiagnostic).diagnostic_timeout_ms, 500);
+  assert.notEqual(configurationHash(defaultDiagnostic.candidates[0], defaultDiagnostic), configurationHash(configuredDiagnostic.candidates[0], configuredDiagnostic));
 });
 
 test("six-label response ceiling stays bounded and the flagship remains intentionally blocked", async () => {
   assert.equal(responseCharacterLimit(6), 16_000); assert.equal(responseCharacterLimit(27), 32_000); assert.equal(responseCharacterLimit(100), 32_000);
-  const flagship = parse(await readFile(resolve(root, "examples", "concurrency-scheduler-phase5.yml"), "utf8")), trial = validateTrial(flagship), preview = previewTrial(trial);
+  const flagship = parse(committedFlagship()), trial = validateTrial(flagship), preview = previewTrial(trial);
   assert.equal(trial.candidates.length, 6); assert.equal(preview.topology.distinct_configuration_count, 6); assert.ok(preview.placeholder_warnings.some((value) => value.startsWith("REPLACE_"))); assert.ok(preview.topology.varied_dimensions.some((item) => item.dimension === "provider_route")); assert.equal(preview.topology.controlled_sweeps.length, 0); assert.equal(trial.diagnosticProbe?.path, "fixtures/concurrency-scheduler/src/arena-write-probe.txt");
   assert.throws(() => validateTrial({ ...flagship, diagnostic_probe: { path: "../unsafe", content: "no" } }), /safe relative/);
 });
 
 test("scheduler fixture typechecks, exposes the class API, and keeps canonical acceptance forbidden", async () => {
   execFileSync(process.execPath, [resolve(root, "node_modules", "typescript", "bin", "tsc"), "-p", resolve(root, "fixtures", "concurrency-scheduler", "tsconfig.json"), "--noEmit"], { stdio: "inherit" });
-  const [source, trial] = await Promise.all([readFile(resolve(root, "fixtures", "concurrency-scheduler", "src", "scheduler.ts"), "utf8"), readFile(resolve(root, "examples", "concurrency-scheduler-phase5.yml"), "utf8")]);
+  const [source, trial] = await Promise.all([readFile(resolve(root, "fixtures", "concurrency-scheduler", "src", "scheduler.ts"), "utf8"), Promise.resolve(committedFlagship())]);
   assert.match(source, /class TaskScheduler/); assert.match(source, /schedule<T>/); assert.match(source, /cancel\(/); assert.match(source, /drain\(/); assert.ok((parse(trial).forbidden_paths as string[]).includes("fixtures/concurrency-scheduler/acceptance"));
 });
 
@@ -64,7 +69,7 @@ test("configured canonical acceptance uses an argument array and retains its own
 });
 
 test("route-aware doctor reports all candidates, deduplicates routes, and never runs a task", async () => {
-  const raw = await loadTrial(resolve(root, "examples", "concurrency-scheduler-phase5.yml"));
+  const raw = validateTrial(parse(committedFlagship()));
   const adapters: any = new Map([["codex-exec", { doctor: async () => ({ adapter: "codex", ok: true, executable_status: "available", authentication: { existing_cli_state: "usable", optional_access_token: "absent" } }) }], ["opencode-run", { doctor: async () => ({ adapter: "opencode", ok: true, executable_status: "available", authentication: { existing_cli_state: "usable", optional_access_token: "absent" }, configuration_layering: { status: "composed", reason: "fixture" } }) }]]);
   let calls = 0;
   const dependencies = { openCodeCommand: async () => "fake-opencode", commandStatus: async (_command: string, args: string[]) => { calls++; return args[0] === "auth" ? { ok: true, stdout: "OpenAI\nOpenCode Go\nDeepSeek", unavailable: false } : { ok: true, stdout: `${args[1]}/deepseek-v4-flash\n${args[1]}/gpt-5.6-terra`, unavailable: false }; } };

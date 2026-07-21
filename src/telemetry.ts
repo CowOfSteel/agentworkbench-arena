@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { basename } from "node:path";
-import { Candidate, Trial } from "./trial";
+import { Candidate, effectiveDiagnosticTimeoutMs, Trial } from "./trial";
 
 export const telemetrySchemaVersion = "2.0";
 export type Availability = "available" | "unavailable";
@@ -127,11 +127,11 @@ export function candidateConfiguration(candidate: Candidate): Record<string, unk
 
 export function configurationHash(candidate: Candidate, trial: Trial): string {
   const declaredTools = Array.isArray(candidate.toolProvenance?.explicitly_enabled) ? [...candidate.toolProvenance.explicitly_enabled].map(String).sort() : [];
-  return createHash("sha256").update(canonicalJson({ adapter: candidate.adapter, harness: candidate.harness, provider: candidate.provider ?? null, model: candidate.model, attention: candidate.attention ?? null, agent: candidate.agent ?? null, profile: candidate.profile ?? null, permission_policy: candidate.permissionPolicy ?? null, declared_tools: declaredTools, config_overrides: sanitizedOptions(candidate), ...candidateConfiguration(candidate), execution_limits: { timeout_ms: trial.timeoutMs, validation_timeout_ms: trial.validationTimeoutMs, retry_limit: trial.maxLaunchTransportRetries, manual_intervention: trial.manualIntervention } })).digest("hex");
+  return createHash("sha256").update(canonicalJson({ adapter: candidate.adapter, harness: candidate.harness, provider: candidate.provider ?? null, model: candidate.model, attention: candidate.attention ?? null, agent: candidate.agent ?? null, profile: candidate.profile ?? null, permission_policy: candidate.permissionPolicy ?? null, declared_tools: declaredTools, config_overrides: sanitizedOptions(candidate), ...candidateConfiguration(candidate), execution_limits: { timeout_ms: trial.timeoutMs, diagnostic_timeout_ms: effectiveDiagnosticTimeoutMs(trial), validation_timeout_ms: trial.validationTimeoutMs, retry_limit: trial.maxLaunchTransportRetries, manual_intervention: trial.manualIntervention } })).digest("hex");
 }
 
 export function trialSnapshot(trial: Trial): Record<string, unknown> {
-  return { schema_version: telemetrySchemaVersion, trial_id: trial.id, task_contract_hash: createHash("sha256").update(trial.taskContract).digest("hex"), allowed_paths: [...trial.allowedPaths].sort(), forbidden_paths: [...trial.forbiddenPaths].sort(), validation_commands: trial.validationCommands, acceptance_command: trial.acceptanceCommand ?? null, timeout_ms: trial.timeoutMs, validation_timeout_ms: trial.validationTimeoutMs, dependency_policy: trial.dependencyPolicy, retry_limit: trial.maxLaunchTransportRetries, manual_intervention: trial.manualIntervention, candidates: trial.candidates.map((candidate) => ({ id: candidate.id, configuration_hash: configurationHash(candidate, trial), ...candidateConfiguration(candidate) })) };
+  return { schema_version: telemetrySchemaVersion, trial_id: trial.id, task_contract_hash: createHash("sha256").update(trial.taskContract).digest("hex"), allowed_paths: [...trial.allowedPaths].sort(), forbidden_paths: [...trial.forbiddenPaths].sort(), validation_commands: trial.validationCommands, acceptance_command: trial.acceptanceCommand ?? null, timeout_ms: trial.timeoutMs, diagnostic_timeout_ms: effectiveDiagnosticTimeoutMs(trial), validation_timeout_ms: trial.validationTimeoutMs, dependency_policy: trial.dependencyPolicy, retry_limit: trial.maxLaunchTransportRetries, manual_intervention: trial.manualIntervention, candidates: trial.candidates.map((candidate) => ({ id: candidate.id, configuration_hash: configurationHash(candidate, trial), ...candidateConfiguration(candidate) })) };
 }
 
 const unsafeTaskText = (value: string): boolean => /(?:[A-Za-z]:[\\/]|\\\\|file:\/\/|(?:^|[\s"'(])\/(?:Users|home|tmp|var|private|mnt|opt)\/|(?:token|password|secret|credential|api[_-]?key)\s*[:=]|(?:codex|opencode)_executable)/i.test(value);
