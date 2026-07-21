@@ -7,7 +7,10 @@ const candidateFiles = new Set(["provenance.json", "telemetry.json", "validation
 const unsafe = /(?:(?:^|[^A-Za-z0-9])[A-Za-z]:[\\/]|\\\\[^\\/]+[\\/]|file:\/\/|\/(?:Users|home)\/|(?:access[_ -]?token|api[_ -]?key|password|secret|credential)\s*[:=])/i;
 
 const confined = (root: string, target: string): boolean => { const value = relative(root, target); return value !== "" && !value.startsWith("..") && !isAbsolute(value); };
-const comparable = (path: string): string => process.platform === "win32" ? path.toLocaleLowerCase() : path;
+const comparable = (path: string): string => {
+  const normalized = path.replace(/^[\\/]{2}\?[\\/]/, "");
+  return process.platform === "win32" ? normalized.toLocaleLowerCase() : normalized;
+};
 const nested = (parent: string, child: string): boolean => { const value = relative(comparable(parent), comparable(child)); return value !== "" && !value.startsWith("..") && !isAbsolute(value); };
 
 async function regularFile(path: string): Promise<void> {
