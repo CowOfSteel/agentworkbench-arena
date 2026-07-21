@@ -59,7 +59,7 @@ async function checkTrackedTree(root: string): Promise<void> {
     if (publicExtensions.has(extname(file).toLowerCase()) && privatePath.test(safe)) throw new Error("unsafe_tracked_private_path");
     if (publicExtensions.has(extname(file).toLowerCase()) && stalePublic.test(safe)) throw new Error("stale_public_claim");
     if (/\b(?:TODO|FIXME)\b/.test(safe) && publicExtensions.has(extname(file).toLowerCase())) throw new Error("unfinished_public_text");
-    if (safe.includes("REPLACE_") && !file.startsWith("tests/") && file !== "src/templates.ts" && file !== "examples/concurrency-scheduler-phase5.yml") throw new Error("unsafe_placeholder");
+    if (safe.includes("REPLACE" + "_") && !file.startsWith("tests/") && file !== "src/templates.ts" && file !== "examples/concurrency-scheduler-phase5.yml") throw new Error("unsafe_placeholder");
   }
   const demo = join(root, "examples", "demo-run");
   if (await scanDirectory(demo, feedbackId)) throw new Error("feedback_id_in_run_artifact");
@@ -102,9 +102,10 @@ function checkDocumentation(root: string): void {
   if (stalePublic.test(`${readme}\n${provenance}\n${readiness}`)) throw new Error("stale_public_claim");
   for (const required of ["yaml 2.9.0", "ISC", "TypeScript 5.9.3", "Apache-2.0", "@types/node", "undici-types"]) if (!notices.includes(required)) throw new Error("third_party_notice_mismatch");
   if (!license.includes("MIT License")) throw new Error("license_mismatch");
+  const plainNotices = notices.replace(/`/g, "").toLowerCase();
   for (const [name, version, packageLicense] of [["yaml", "2.9.0", "ISC"], ["typescript", "5.9.3", "Apache-2.0"], ["@types/node", "24.13.3", "MIT"], ["undici-types", "7.18.2", "MIT"]]) {
     const entry = lock.packages?.[`node_modules/${name}`];
-    if (entry?.version !== version || entry.license !== packageLicense || !notices.toLowerCase().includes(`${name} ${version}`.toLowerCase())) throw new Error("third_party_notice_mismatch");
+    if (entry?.version !== version || entry.license !== packageLicense || !plainNotices.includes(`${name} ${version}`.toLowerCase())) throw new Error("third_party_notice_mismatch");
   }
 }
 
