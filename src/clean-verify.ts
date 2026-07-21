@@ -46,8 +46,8 @@ export async function verifyClean(options: CleanVerifyOptions = {}): Promise<Cle
     const packed = npm(["pack", "--json", "--pack-destination", temporary]); const pack = await execute(packed.command, packed.args, worktree, timeout);
     if (!record(checks, "package_pack", pack)) return { status: "FAILED", checks };
     const archive = (JSON.parse(pack.stdout) as Array<{ filename: string }>)[0]?.filename; if (!archive) { checks.push({ id: "package_pack", status: "failed", classification: "package_archive_missing" }); return { status: "FAILED", checks }; }
-    const installCommand = npm(["install", "--offline", "--global", "--prefix", install, join(temporary, archive)]); if (!await invoke("installed_cli", installCommand.command, installCommand.args, worktree)) return { status: "FAILED", checks };
-    const bin = process.platform === "win32" ? join(install, "arena.cmd") : join(install, "bin", "arena"); if (!await invoke("installed_cli_help", bin, ["--help"], temporary)) return { status: "FAILED", checks };
+    const installCommand = npm(["install", "--offline", "--prefix", install, join(temporary, archive)]); if (!await invoke("installed_cli", installCommand.command, installCommand.args, worktree)) return { status: "FAILED", checks };
+    const bin = process.platform === "win32" ? join(install, "node_modules", ".bin", "arena.cmd") : join(install, "node_modules", ".bin", "arena"); if (!await invoke("installed_cli_help", bin, ["--help"], temporary)) return { status: "FAILED", checks };
     return { status: "VERIFIED", checks };
   } catch { checks.push({ id: "clean_verify", status: "failed", classification: "unexpected_failure" }); return { status: "FAILED", checks }; }
   finally {
