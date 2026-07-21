@@ -96,7 +96,7 @@ Phase 3 closeout implementation reference:
 - Phase 4.5 verification - `typecheck`, `build`, 53 tests, fixture typecheck/test, offline demo, six-candidate preview, read-only demo verification, and `git diff --check` passed; Windows workflow run `29799574020` passed.
 - Phase 4.5 audit repairs - `typecheck`, `build`, 55 tests, fixture typecheck/test, offline demo, six-candidate preview, read-only demo verification, and `git diff --check` passed; current-head Windows workflow run `29801870917` passed.
 - Final Phase 4.5 repair and Phase 5 trial preparation - `typecheck`, `build`, 61 tests, bounded-inventory fixture checks, scheduler fixture typecheck/test, offline demo, both six-candidate previews, read-only demo verification, and `git diff --check` passed; current-head Windows workflow run `29804884544` passed. No native candidate, Sol, or Pages deployment ran.
-- Phase 5 deterministic reproducibility stabilization - `typecheck`, `build`, 66 tests, both fixture checks, scheduler typecheck/test, expected quick scheduler-acceptance baseline failure, offline demo, read-only demo verification, clean worktree verification, both previews, and `git diff --check` passed; current-head Windows workflow run `29843017392` passed. No native candidate, Sol, credential creation, or Pages deployment ran.
+- Phase 5 audit repairs - `typecheck`, `build`, 71 tests, both fixture checks, scheduler typecheck/test, TAP-backed `scheduler:baseline-contract`, offline demo, read-only demo verification, clean worktree verification, flagship preview, route doctor, and `git diff --check` passed. Windows workflow run `29848817216` passed for repair code head `390224ac5979636e496717b554f9d05e35d0345f`. No native candidate, Sol, credential creation, or Pages deployment ran.
 - Final human Phase 4.5 proof - the six-candidate Low adjudication completed with accepted `RECOMMENDATION` for `codex-luna-high`; eligible candidates ranked `codex-luna-high`, `opencode-luna-high`, and `opencode-luna-medium`, while the remaining candidates were excluded by deterministic allowed-path gates. Report generation passed and `arena verify` returned `VERIFIED`. The malformed response's duplicate lower ranks `1,2,2` were repaired to unique sequential ranks `1,2,3`; no Sol High run was performed.
 
 ## Historical evidence
@@ -106,7 +106,7 @@ Phase 3 closeout implementation reference:
 
 ## Next bounded step
 
-PR #4 and PR #5 are merged. The scheduler flagship fixture/trial is prepared but unexecuted; its repository and native-variant `REPLACE_*` values remain human Phase 5 work. The recommended immutable fixture baseline is `3660febd99e24ed2f5952ec842ec057b7629db20`, but the human must create and push its tag. Sol High has not been invoked. Phase 5 implementation is ready for audit, not for the native flagship run.
+PR #4 and PR #5 are merged. The scheduler flagship fixture/trial is prepared but unexecuted; its repository and native-variant `REPLACE_*` values remain human Phase 5 work. The final immutable fixture baseline is `8dda0e4068a8b7fb27793cfbab6947076ec24e7f`, but the human must create and push its tag. OpenCode variants remain declared-unverified until bounded diagnostics confirm them. Sol High has not been invoked. Phase 5 implementation is ready for audit, not for the native flagship run.
 
 PHASE_4_5_GATE: PASS
 PHASE_5_READY: READY_FOR_AUDIT

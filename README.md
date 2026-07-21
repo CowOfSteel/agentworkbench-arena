@@ -97,17 +97,18 @@ The committed bounded two-candidate proof is also the public sample path. After 
 
 OpenAI GPT-5.6 native efforts are `none`, `low`, `medium`, `high`, `xhigh`, and `max`. DeepSeek V4 efforts are `high` and `max`; for the explicit DeepSeek routes Arena records `low`/`medium` → `high` and `xhigh` → `max` as documented compatibility, rather than changing a harness argument. It records requested harness variant, effective provider effort, and evidence source separately.
 
-Before a human runs this template, resolve each `REPLACE_*` value and record installed Codex/OpenCode versions; `codex exec --help`; `opencode run --help`; `opencode models`; a credential-safe provider-configuration inspection; one bounded doctor/diagnostic per unique route; and a dry-run/argument-shape proof for every native effort. The recommended scheduler fixture-freeze commit is `3660febd99e24ed2f5952ec842ec057b7629db20`; create its immutable baseline tag only after human confirmation:
+Before a human runs this template, resolve each `REPLACE_*` value and record installed Codex/OpenCode versions; `codex exec --help`; `opencode run --help`; `opencode models`; a credential-safe provider-configuration inspection; one bounded doctor/diagnostic per unique route; and a dry-run/argument-shape proof for every native effort. The frozen scheduler fixture baseline is `8dda0e4068a8b7fb27793cfbab6947076ec24e7f`; create its immutable tag only after human confirmation:
 
 ```text
-git tag -a phase5-concurrency-scheduler-baseline -m "Phase 5 scheduler baseline" <baseline-commit>
+git tag -a phase5-concurrency-scheduler-baseline -m "Phase 5 scheduler baseline" 8dda0e4068a8b7fb27793cfbab6947076ec24e7f
+git push origin phase5-concurrency-scheduler-baseline
 ```
 
 ## Phase 5 reproducibility and stabilization
 
-`npm run verify:clean` creates and removes an isolated Git worktree, proves the offline build/demo/report path, and smoke-tests the installed `arena` bin. The intentionally incomplete scheduler baseline must fail `npm run scheduler:acceptance` quickly; clean verification treats that controlled failure as proof that the candidate task remains meaningful.
+`npm run verify:clean` creates and removes an isolated Git worktree, proves the offline build/demo/report path, and smoke-tests the installed `arena` bin. `npm run scheduler:baseline-contract` compiles the fixture and proves the intentional baseline failure through the exact canonical `node:test` inventory, bounded TAP output, and expected behavioral assertions; it rejects launch, syntax, module-resolution, timeout, and unexpected-pass failures.
 
-`arena doctor <trial.yml>` reports adapter, per-candidate, and provider-route readiness without invoking a coding model. It rejects unresolved placeholders and unsafe OpenCode inline configuration composition. `arena sanitize-sample <verified-run> <output>` creates a sanitized derivative without changing the verified source run.
+`arena doctor <trial.yml>` reports adapter, per-candidate, and provider-route readiness without invoking a coding model. It rejects unresolved placeholders and unsafe OpenCode inline configuration composition. A declared OpenCode variant is `declared_unverified` until a bounded diagnostic proves provider acceptance. `arena sanitize-sample <verified-run> <output>` creates a field-allowlisted, scanned derivative without changing the verified source run.
 
 See [the Phase 5 runbook](docs/PHASE5-RUNBOOK.md) for offline sample mode, live prerequisites, the exact human-only flagship sequence, privacy limits, Pages enablement, and repository-access checks. See [environment resolution](docs/PHASE5-ENVIRONMENT-RESOLUTION.md) for the nonsecret identifiers established locally.
 

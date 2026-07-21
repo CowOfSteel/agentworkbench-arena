@@ -15,7 +15,7 @@ This record contains nonsecret local discovery only. It does not prove a provide
 - OpenCode Go: `opencode-go/deepseek-v4-flash`.
 - Direct DeepSeek: `deepseek/deepseek-v4-flash`.
 
-The Phase 5 template records their provider/model components. `opencode run --help` confirms the literal `--variant` argument, but it does not enumerate model-specific supported values.
+The Phase 5 template records their provider/model components. `opencode run --help` confirms the literal `--variant` argument, but it does not enumerate model-specific supported values. Route doctor therefore records a supplied OpenCode variant as `declared_unverified`, not `supported`; only real local discovery evidence may establish `supported`. A static route may still be ready for its required bounded diagnostic.
 
 ## Still human-resolved
 
@@ -31,4 +31,3 @@ npm start -- diagnose <resolved-trial.yml> <candidate-id>
 ```
 
 The last command is the bounded route diagnostic and intentionally uses the configured candidate. Run it only during the human-controlled flagship sequence. Do not copy credential values, executable paths, or provider configuration into this repository.
-
