@@ -1,6 +1,6 @@
 # Five-minute live run
 
-This guide is for developers who already have Codex and/or OpenCode access. For an expensive stabilization run, use the more conservative [Phase 5 runbook](PHASE5-RUNBOOK.md) and its stage-specific commands.
+This guide is for developers who already have Codex and/or OpenCode access. For an expensive stabilization run, use the conservative [final flagship runbook](FINAL-FLAGSHIP-RUNBOOK.md) and its stage-specific commands.
 
 ## What Arena uses
 
@@ -102,7 +102,7 @@ candidates:
   - id: codex-low
     adapter: codex-exec
     harness: codex
-    model: REPLACE_MODEL
+    model: YOUR_MODEL_ID
     native_reasoning_effort: low
     permission_policy: workspace-write
 ```
