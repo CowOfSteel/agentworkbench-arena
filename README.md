@@ -4,7 +4,7 @@ AgentWorkbench Arena is a repository-specific coding-agent configuration calibra
 
 Phase 1 native feasibility is complete with a passing `LIVE_MODE` gate. Phase 2 supplies deterministic telemetry, independent canonical validation, explicit hard gates, and a portable run manifest. Phase 3 can consume only finalized Phase 2 packets for identity-masked semantic adjudication; deterministic hard gates remain authoritative.
 
-Phase 3 implementation, deterministic tests, Windows CI, and the bounded authenticated Sol Low proof are complete. Phase 4 provides deterministic static HTML/YAML reporting and an offline sanitized demo. Phase 4.5 adds the product workflow, offline preflight, structural topology, decision lenses, verification, and a Pages-ready sample path. PR #5 merged at `c9baa1fa22331325f5bdd17aa87c7224eca0af3f`; Sol High remains reserved for final end-to-end stabilization while Phase 5 reproducibility work proceeds.
+Phase 3 implementation, deterministic tests, Windows CI, and the bounded authenticated Sol Low proof are complete. Phase 4 provides deterministic static HTML/YAML reporting and an offline sanitized demo. Phase 4.5 adds the product workflow, offline preflight, structural topology, decision lenses, verification, and a Pages-ready sample path. PR #5 merged at `c9baa1fa22331325f5bdd17aa87c7224eca0af3f`; Phase 5 reproducibility implementation is ready for audit, while Sol High remains reserved for final human-controlled stabilization.
 
 ## Start here
 
@@ -97,7 +97,7 @@ The committed bounded two-candidate proof is also the public sample path. After 
 
 OpenAI GPT-5.6 native efforts are `none`, `low`, `medium`, `high`, `xhigh`, and `max`. DeepSeek V4 efforts are `high` and `max`; for the explicit DeepSeek routes Arena records `low`/`medium` → `high` and `xhigh` → `max` as documented compatibility, rather than changing a harness argument. It records requested harness variant, effective provider effort, and evidence source separately.
 
-Before a human runs this template, resolve each `REPLACE_*` value and record installed Codex/OpenCode versions; `codex exec --help`; `opencode run --help`; `opencode models`; a credential-safe provider-configuration inspection; one bounded doctor/diagnostic per unique route; and a dry-run/argument-shape proof for every native effort. Create the immutable baseline only after selecting the commit:
+Before a human runs this template, resolve each `REPLACE_*` value and record installed Codex/OpenCode versions; `codex exec --help`; `opencode run --help`; `opencode models`; a credential-safe provider-configuration inspection; one bounded doctor/diagnostic per unique route; and a dry-run/argument-shape proof for every native effort. The recommended scheduler fixture-freeze commit is `3660febd99e24ed2f5952ec842ec057b7629db20`; create its immutable baseline tag only after human confirmation:
 
 ```text
 git tag -a phase5-concurrency-scheduler-baseline -m "Phase 5 scheduler baseline" <baseline-commit>

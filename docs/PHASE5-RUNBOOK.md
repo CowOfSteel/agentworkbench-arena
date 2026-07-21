@@ -38,7 +38,7 @@ git switch main
 git pull --ff-only
 git status --short # must be empty
 
-$Baseline = "bca31d7c5b3cd8af70a39d3c22cf873e638b3a89"
+$Baseline = "3660febd99e24ed2f5952ec842ec057b7629db20"
 git tag -a phase5-concurrency-scheduler-baseline -m "Phase 5 scheduler baseline" $Baseline
 git push origin phase5-concurrency-scheduler-baseline
 
@@ -72,4 +72,3 @@ Finally run the Pages sample scan/staging path, enable **Settings → Pages → 
 - The source scheduler baseline intentionally fails canonical acceptance. A successful candidate worktree must pass it without modifying `fixtures/concurrency-scheduler/acceptance/`.
 - Route doctoring does not invoke models. A passed doctor is readiness evidence, not a live-provider completion proof.
 - Sol High is human-only stabilization. It remains separate from deterministic hard-gate authority.
-

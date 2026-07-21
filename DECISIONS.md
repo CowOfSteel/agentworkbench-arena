@@ -45,3 +45,4 @@
 43. Route doctoring is credential-safe and model-free. Executable availability alone never establishes provider-route readiness.
 44. Arena preserves a supplied `OPENCODE_CONFIG` and applies only a permission-only `OPENCODE_CONFIG_CONTENT` layer. A pre-existing inline configuration is refused rather than inspected or overwritten.
 45. Public sample sanitation accepts only finalized verified evidence, uses an explicit allowlist, and never modifies its source run.
+46. The clean-install smoke test bundles Arena's sole runtime dependency so its packed CLI can be installed and verified offline after the outer dependency installation.
