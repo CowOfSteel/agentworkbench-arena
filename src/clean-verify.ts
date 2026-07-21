@@ -6,7 +6,7 @@ import { processInvocation } from "./adapters";
 
 export interface CleanCheck { id: string; status: "passed" | "failed"; classification: string; }
 export interface CleanVerification { status: "VERIFIED" | "FAILED"; checks: CleanCheck[]; }
-interface CommandResult { exit_code: number | null; timeout: boolean; launch_error: string | null; stdout: string; }
+interface CommandResult { exit_code: number | null; timeout: boolean; launch_error: string | null; stdout: string; stderr?: string; }
 export interface CleanVerifyOptions { root?: string; timeout_ms?: number; run?: (command: string, args: string[], cwd: string, timeoutMs: number) => Promise<CommandResult>; }
 
 const rootDefault = resolve(__dirname, "..", "..");
@@ -17,17 +17,19 @@ async function run(command: string, args: string[], cwd: string, timeoutMs: numb
   const invocation = processInvocation(command, args);
   return new Promise((resolveResult) => {
     const child = spawn(invocation.command, invocation.args, { cwd, shell: false, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, windowsVerbatimArguments: process.platform === "win32" && invocation.command.toLowerCase().endsWith("cmd.exe") });
-    let stdout = "", launchError: string | null = null, timedOut = false;
+    let stdout = "", stderr = "", launchError: string | null = null, timedOut = false;
     child.stdout?.on("data", (chunk: Buffer) => { stdout += chunk; });
+    child.stderr?.on("data", (chunk: Buffer) => { stderr += chunk; });
     child.once("error", (error) => { launchError = error.message; });
     const timer = setTimeout(() => { timedOut = true; child.kill(); }, timeoutMs);
-    child.once("close", (exitCode) => { clearTimeout(timer); resolveResult({ exit_code: exitCode, timeout: timedOut, launch_error: launchError, stdout }); });
+    child.once("close", (exitCode) => { clearTimeout(timer); resolveResult({ exit_code: exitCode, timeout: timedOut, launch_error: launchError, stdout, stderr }); });
   });
 }
 
 const record = (checks: CleanCheck[], id: string, result: CommandResult, expectedFailure = false): boolean => {
   const passed = !result.timeout && !result.launch_error && (expectedFailure ? result.exit_code !== 0 : result.exit_code === 0);
-  checks.push({ id, status: passed ? "passed" : "failed", classification: passed ? expectedFailure ? "expected_baseline_acceptance_failure" : "completed" : result.timeout ? "timeout" : result.launch_error ? "launch_failure" : expectedFailure && result.exit_code === 0 ? "unexpected_baseline_acceptance_pass" : "command_failure" });
+  const code = result.stderr?.match(/npm (?:ERR!|error) code\s+([A-Z0-9_]+)/i)?.[1]?.toLowerCase();
+  checks.push({ id, status: passed ? "passed" : "failed", classification: passed ? expectedFailure ? "expected_baseline_acceptance_failure" : "completed" : result.timeout ? "timeout" : result.launch_error ? "launch_failure" : expectedFailure && result.exit_code === 0 ? "unexpected_baseline_acceptance_pass" : code ? `command_failure_${code}` : "command_failure" });
   return passed;
 };
 
