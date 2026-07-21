@@ -1,24 +1,39 @@
 import { CandidateAdapter, CodexExecAdapter, OpenCodeRunAdapter } from "./adapters";
 import { adjudicationDryRun, adjudicateRun, CodexJudgeAdapter, defaultJudgeConfig } from "./adjudication";
 import { runDiagnostic, runTrial } from "./runner";
-import { generateReport } from "./report";
+import { generateReport, verifyReport } from "./report";
 import { loadTrial } from "./trial";
 import { resolve } from "node:path";
+import { calibrate } from "./calibrate";
+import { previewTrial, renderTrialPreview } from "./preview";
+import { trialTemplate, writeTrialTemplate } from "./templates";
 
-const usage = `AgentWorkbench Arena (Phase 4 static product report)
+const usage = `AgentWorkbench Arena — repository-specific coding-agent configuration calibration
 
 Usage:
   arena --help
+  arena init <attention-sweep|harness-comparison|practical-comparison> [output.yml]
+  arena preview <trial.yml>
+  arena calibrate <trial.yml> [--reasoning low|high]
   arena doctor <trial.yml>
   arena run <trial.yml>
   arena diagnose <trial.yml> <candidate-id>
   arena diagnostic <trial.yml> <candidate-id>
   arena adjudicate <run-directory> [--dry-run] [--reasoning low|high]
   arena report <run-directory>
+  arena verify <run-directory>
   arena demo
 
-Reports consume completed artifacts only and never invoke candidate or judge adapters.
+Start with the public sample (arena demo), then init, preview, and calibrate.
+Stage-specific commands remain available for advanced debugging.
+Reports and verify consume completed artifacts only and never invoke candidate or judge adapters.
 `;
+
+function reasoningArgument(args: string[], command: string): "low" | "high" {
+  if (!args.length) return "low";
+  if (args.length === 2 && args[0] === "--reasoning" && (args[1] === "low" || args[1] === "high")) return args[1];
+  throw new Error(`usage: arena ${command} <trial.yml> [--reasoning low|high]`);
+}
 
 export async function main(args: string[] = process.argv.slice(2)): Promise<number> {
   if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
@@ -28,6 +43,27 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<numb
 
   if (args[0] === "--version") {
     console.log("0.1.0");
+    return 0;
+  }
+
+  if (args[0] === "init") {
+    if (!args[1] || args[3]) throw new Error("usage: arena init <attention-sweep|harness-comparison|practical-comparison> [output.yml]");
+    trialTemplate(args[1] as "attention-sweep" | "harness-comparison" | "practical-comparison");
+    const result = await writeTrialTemplate(args[1] as "attention-sweep" | "harness-comparison" | "practical-comparison", args[2]);
+    console.log(`Created ${result.path}\nNext: ${result.next_command}`);
+    return 0;
+  }
+
+  if (args[0] === "preview") {
+    if (!args[1] || args[2]) throw new Error("usage: arena preview <trial.yml>");
+    console.log(renderTrialPreview(previewTrial(await loadTrial(args[1]))));
+    return 0;
+  }
+
+  if (args[0] === "calibrate") {
+    if (!args[1]) throw new Error("usage: arena calibrate <trial.yml> [--reasoning low|high]");
+    const summary = await calibrate(await loadTrial(args[1]), { reasoning: reasoningArgument(args.slice(2), "calibrate"), progress: (message) => process.stderr.write(`${message}\n`) });
+    console.log(JSON.stringify(summary));
     return 0;
   }
 
@@ -44,6 +80,14 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<numb
     const result = await generateReport(args[1]);
     console.log(JSON.stringify({ run_directory: result.directory, report: result.report, recommendation: result.recommendation }, null, 2));
     return 0;
+  }
+
+  if (args[0] === "verify") {
+    if (!args[1] || args[2]) throw new Error("usage: arena verify <run-directory>");
+    const result = await verifyReport(args[1]);
+    for (const check of result.checks) console.log(`${check.status === "passed" ? "[ok]" : "[failed]"} ${check.id}: ${check.reason}`);
+    console.log(result.status);
+    return result.status === "VERIFIED" ? 0 : 1;
   }
 
   if (args[0] === "demo") {

@@ -31,3 +31,9 @@
 29. Phase 4 preserves all six accepted Phase 3 ordinal criteria in its typed model and static outputs; it validates exact opaque-label coverage, criterion keys, and ordinal values before rendering.
 30. Recorded manifest completion states and judge execution classifications are presentation evidence, not a replacement for the accepted controller outcome. A sanitized demo labels historical classifications explicitly when retained.
 31. `sample-metadata.json` is an optional strict, versioned marker for a sanitized derivative. It declares the source-run evidence-completeness scope and intentional omissions; ordinary finalized reports have no sample notice.
+32. `arena calibrate` is the canonical one-command workflow. Existing stage commands remain available, and calibration preserves their authority and artifacts.
+33. Comparison topology is structural analysis over allowlisted complete-configuration dimensions, not statistical causal inference.
+34. Decision lenses are informational presentation facts only. They never score, rerank, or override `evaluation.json`.
+35. `arena verify` is read-only: it validates finalized authority and detects stale derived outputs without invoking adapters, validation commands, or network calls.
+36. Trial templates contain no credentials, executable overrides, or machine-local paths. The public demo remains a clearly labelled bounded proof until Phase 5 replaces it with a final stabilization run.
+37. Phase 4.5 adds no GUI, server, database, new adapter, judge profile, weighted scoring, or automatic routing.

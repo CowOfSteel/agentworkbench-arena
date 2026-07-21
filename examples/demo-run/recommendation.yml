@@ -34,6 +34,111 @@ ranking:
       - Typecheck and tests passed.
     tradeoffs:
       - The single expression is slightly denser than B's equivalent implementation.
+    placement:
+      why:
+        - Selected by the controller-owned recommendation.
+        - Passes every hard gate and both required validations. It directly implements final-only cent rounding in the smallest possible one-line change.
+        - "Informational lens: Controller recommendation."
+        - "Informational lens: Fastest candidate execution."
+        - "Informational lens: Smallest total code change."
+        - "Informational lens: Fewest interventions."
+        - "Informational lens: Fewest retries."
+      why_not:
+        - The single expression is slightly denser than B's equivalent implementation.
+    telemetry_coverage: &a1
+      available: 19
+      unavailable: 11
+      metrics:
+        wall_clock_ms:
+          status: available_nonzero
+          source: arena
+        validation_wall_clock_ms:
+          status: available_nonzero
+          source: arena
+        total_pipeline_ms:
+          status: available_nonzero
+          source: arena
+        tool_call_count:
+          status: available_nonzero
+          source: codex-jsonl
+        command_count:
+          status: available_nonzero
+          source: codex-jsonl
+        retry_count:
+          status: established_zero
+          source: arena
+        human_intervention_count:
+          status: established_zero
+          source: arena
+        input_tokens:
+          status: unavailable
+          source: codex-jsonl
+        cached_input_tokens:
+          status: unavailable
+          source: codex-jsonl
+        uncached_input_tokens:
+          status: unavailable
+          source: unavailable
+        output_tokens:
+          status: unavailable
+          source: codex-jsonl
+        provider_reported_cost:
+          status: unavailable
+          source: codex-jsonl
+        provider_reported_currency:
+          status: unavailable
+          source: unavailable
+        estimated_cost:
+          status: unavailable
+          source: unavailable
+        estimated_cost_currency:
+          status: unavailable
+          source: unavailable
+        subscription_consumption:
+          status: unavailable
+          source: unavailable
+        quota_percent_before:
+          status: unavailable
+          source: unavailable
+        quota_percent_after:
+          status: unavailable
+          source: unavailable
+        permission_denials:
+          status: established_zero
+          source: codex-jsonl
+        user_questions:
+          status: established_zero
+          source: codex-jsonl
+        manual_prompt_corrections:
+          status: established_zero
+          source: arena
+        manual_file_edits:
+          status: established_zero
+          source: arena
+        aborts:
+          status: established_zero
+          source: arena
+        transport_retries:
+          status: established_zero
+          source: arena
+        files_changed:
+          status: available_nonzero
+          source: arena
+        lines_added:
+          status: available_nonzero
+          source: arena
+        lines_deleted:
+          status: available_nonzero
+          source: arena
+        validation_pass_count:
+          status: available_nonzero
+          source: arena
+        validation_fail_count:
+          status: established_zero
+          source: arena
+        hard_gate_status:
+          status: available_nonzero
+          source: arena
     evidence_references:
       - evaluation.json
       - adjudication.json
@@ -65,6 +170,109 @@ ranking:
       - Typecheck and tests passed.
     tradeoffs:
       - The intermediate variable adds a line without changing behavior or improving required coverage.
+    placement:
+      why:
+        - Eligible and retained in controller order.
+        - Also passes every hard gate and validation and correctly implements the contract, but introduces an unnecessary intermediate variable.
+        - "Informational lens: Fewest interventions."
+        - "Informational lens: Fewest retries."
+      why_not:
+        - Not the controller recommendation; accepted semantic rank is 2.
+        - The intermediate variable adds a line without changing behavior or improving required coverage.
+    telemetry_coverage: &a2
+      available: 21
+      unavailable: 9
+      metrics:
+        wall_clock_ms:
+          status: available_nonzero
+          source: arena
+        validation_wall_clock_ms:
+          status: available_nonzero
+          source: arena
+        total_pipeline_ms:
+          status: available_nonzero
+          source: arena
+        tool_call_count:
+          status: available_nonzero
+          source: opencode-jsonl
+        command_count:
+          status: available_nonzero
+          source: opencode-jsonl
+        retry_count:
+          status: established_zero
+          source: arena
+        human_intervention_count:
+          status: established_zero
+          source: arena
+        input_tokens:
+          status: available_nonzero
+          source: opencode-jsonl
+        cached_input_tokens:
+          status: unavailable
+          source: opencode-jsonl
+        uncached_input_tokens:
+          status: unavailable
+          source: unavailable
+        output_tokens:
+          status: available_nonzero
+          source: opencode-jsonl
+        provider_reported_cost:
+          status: unavailable
+          source: opencode-jsonl
+        provider_reported_currency:
+          status: unavailable
+          source: unavailable
+        estimated_cost:
+          status: unavailable
+          source: unavailable
+        estimated_cost_currency:
+          status: unavailable
+          source: unavailable
+        subscription_consumption:
+          status: unavailable
+          source: unavailable
+        quota_percent_before:
+          status: unavailable
+          source: unavailable
+        quota_percent_after:
+          status: unavailable
+          source: unavailable
+        permission_denials:
+          status: established_zero
+          source: opencode-jsonl
+        user_questions:
+          status: established_zero
+          source: opencode-jsonl
+        manual_prompt_corrections:
+          status: established_zero
+          source: arena
+        manual_file_edits:
+          status: established_zero
+          source: arena
+        aborts:
+          status: established_zero
+          source: arena
+        transport_retries:
+          status: established_zero
+          source: arena
+        files_changed:
+          status: available_nonzero
+          source: arena
+        lines_added:
+          status: available_nonzero
+          source: arena
+        lines_deleted:
+          status: available_nonzero
+          source: arena
+        validation_pass_count:
+          status: available_nonzero
+          source: arena
+        validation_fail_count:
+          status: established_zero
+          source: arena
+        hard_gate_status:
+          status: available_nonzero
+          source: arena
     evidence_references:
       - evaluation.json
       - adjudication.json
@@ -72,6 +280,127 @@ ranking:
       - candidates/opencode-luna-low/telemetry.json
       - candidates/opencode-luna-low/validation.json
       - candidates/opencode-luna-low/candidate.diff
+comparison_topology:
+  candidate_count: 2
+  held_constant_dimensions:
+    - model
+    - attention
+    - profile
+    - declared_tools_plugins
+  varied_dimensions:
+    - dimension: adapter
+      values:
+        - codex-exec
+        - opencode-run
+      incomplete: false
+    - dimension: harness
+      values:
+        - codex
+        - opencode
+      incomplete: false
+    - dimension: provider
+      values:
+        - null
+        - openai
+      incomplete: false
+    - dimension: agent
+      values:
+        - null
+        - build
+      incomplete: false
+    - dimension: permission_policy
+      values:
+        - approval_policy: never
+          sandbox_mode: workspace-write
+        - share: disabled
+          permission:
+            "*": allow
+            external_directory: deny
+            question: deny
+            webfetch: deny
+            websearch: deny
+      incomplete: false
+  controlled_sweeps: []
+  duplicate_configuration_groups: []
+  multi_variable_pair_count: 1
+  multi_variable_pairs:
+    - candidates:
+        - codex-luna-low
+        - opencode-luna-low
+      differing_dimensions:
+        - adapter
+        - harness
+        - provider
+        - agent
+        - permission_policy
+  uncomparable_pair_count: 0
+  supported_structural_claims: []
+  unsupported_causal_claims:
+    - Topology is structural analysis only; it does not establish causal effects.
+    - Multi-variable comparisons cannot support a single-dimension causal claim.
+decision_lenses:
+  - id: controller_recommendation
+    label: Controller recommendation
+    status: winner
+    candidateIds:
+      - codex-luna-low
+    reason: Controller-owned evaluation.json outcome.
+  - id: fastest_candidate_execution
+    label: Fastest candidate execution
+    status: winner
+    candidateIds:
+      - codex-luna-low
+    values:
+      codex-luna-low: 33569
+      opencode-luna-low: 49651
+    reason: Fastest candidate execution uses the lowest available wall_clock_ms.
+  - id: smallest_total_code_change
+    label: Smallest total code change
+    status: winner
+    candidateIds:
+      - codex-luna-low
+    values:
+      codex-luna-low: 2
+      opencode-luna-low: 3
+    reason: Smallest total code change uses the lowest available lines_added + lines_deleted.
+  - id: fewest_interventions
+    label: Fewest interventions
+    status: tie
+    candidateIds:
+      - codex-luna-low
+      - opencode-luna-low
+    values:
+      codex-luna-low: 0
+      opencode-luna-low: 0
+    reason: Fewest interventions uses the lowest available human_intervention_count.
+  - id: fewest_retries
+    label: Fewest retries
+    status: tie
+    candidateIds:
+      - codex-luna-low
+      - opencode-luna-low
+    values:
+      codex-luna-low: 0
+      opencode-luna-low: 0
+    reason: Fewest retries uses the lowest available retry_count.
+  - id: lowest_provider_reported_cost
+    label: Lowest provider-reported cost
+    status: not_comparable
+    candidateIds: []
+    reason: Eligible candidates lack compatible complete provider cost and currency evidence.
+  - id: lowest_token_usage
+    label: Lowest reported token usage
+    status: not_comparable
+    candidateIds: []
+    reason: Eligible candidates lack compatible complete token source semantics.
+  - id: telemetry_coverage
+    label: Telemetry coverage
+    status: not_applicable
+    candidateIds: []
+    values:
+      codex-luna-low: *a1
+      opencode-luna-low: *a2
+    reason: Informational coverage only; it is not a coding-result quality score.
 judge_execution:
   status: completed
   failureClassification: permission

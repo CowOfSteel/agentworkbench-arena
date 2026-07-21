@@ -1,22 +1,37 @@
 # AgentWorkbench Arena
 
-AgentWorkbench Arena is a local calibration tool for comparing complete coding-agent configurations on a user-owned repository. It is a separate contest-period prototype of a future AgentWorkbench configuration-calibration system.
+AgentWorkbench Arena is a repository-specific coding-agent configuration calibration tool. It compares complete candidate configurations against the same user-owned repository contract while preserving deterministic evidence and keeping semantic judgment subordinate to hard gates.
 
 Phase 1 native feasibility is complete with a passing `LIVE_MODE` gate. Phase 2 supplies deterministic telemetry, independent canonical validation, explicit hard gates, and a portable run manifest. Phase 3 can consume only finalized Phase 2 packets for identity-masked semantic adjudication; deterministic hard gates remain authoritative.
 
-Phase 3 implementation, deterministic tests, Windows CI, and the bounded authenticated Sol Low proof are complete. Phase 4 now provides deterministic static HTML/YAML reporting and an offline sanitized demo. Sol High remains reserved for final end-to-end stabilization; Phase 5 has not started.
+Phase 3 implementation, deterministic tests, Windows CI, and the bounded authenticated Sol Low proof are complete. Phase 4 provides deterministic static HTML/YAML reporting and an offline sanitized demo. Phase 4.5 adds the product workflow, offline preflight, structural topology, decision lenses, verification, and a Pages-ready sample path. Sol High remains reserved for final end-to-end stabilization; Phase 5 has not started.
 
-## Quick start
+## Start here
+
+1. View the public sample after GitHub Pages is enabled: <https://cowofsteel.github.io/agentworkbench-arena/>.
+2. Regenerate that same sanitized sample offline: `npm run demo`.
+3. Create a safe starting trial: `npm start -- init attention-sweep`.
+4. Inspect it offline: `npm start -- preview trial.yml`.
+5. Run the complete workflow when native prerequisites are deliberately available: `npm start -- calibrate trial.yml --reasoning low`.
+
+`arena calibrate` is the canonical one-command workflow. It preserves each stage’s artifacts and produces one final JSON summary. Existing commands remain available for advanced debugging.
+
+## Commands
 
 ```text
 npm install
 npm run build
 npm test
+npm run demo
+npm start -- init practical-comparison trial.yml
+npm start -- preview trial.yml
+npm start -- verify examples/demo-run
+# Human-run only when ready to use native candidates and Sol:
+npm start -- calibrate trial.yml --reasoning low
 npm start -- doctor examples/bounded-fix/trial.yml
 npm start -- diagnose examples/bounded-fix/trial.yml codex-luna-low
 npm start -- run examples/bounded-fix/trial.yml
 npm start -- report <completed-run-directory>
-npm run demo
 ```
 
 The project uses TypeScript, Node.js, native Git/process capabilities, Node’s built-in test runner, and one YAML parser. It has no web framework, database, dashboard, or plugin framework.
@@ -62,13 +77,21 @@ The HTML report is self-contained with inline CSS and portable evidence links. T
 
 `npm run demo` regenerates the sanitized bounded proof under `examples/demo-run/` without authentication or network access. Its versioned `sample-metadata.json` labels it as a sanitized derivative whose completeness pertains to the source run; it omits raw logs, worktrees, executable details, private transcripts, and account/session data while preserving the real Low-proof recommendation and any historical source-execution classification as non-authoritative evidence.
 
+## Phase 4.5 product experience
+
+`arena init` writes three commented, schema-valid templates without credentials or machine-local paths. `arena preview` runs no candidates, judge, validation command, network call, or model; it explains execution order, explicit policy, structural topology, unresolved placeholders, and upper-bound process/validation budgets. `arena verify` is read-only: it validates authority/path confinement and confirms the current HTML and YAML exactly match their source artifacts.
+
+The report’s topology is structural analysis, not statistical causal inference. Its decision lenses (controller outcome, candidate speed, smallest change, interventions, retries, compatible costs/tokens, and telemetry coverage) are informational only and never override `evaluation.json`. Every candidate gets deterministic why/why-not placement evidence, and the coverage matrix preserves established zero versus unavailable metrics.
+
+The committed bounded two-candidate proof is also the public sample path. After merge, enable **Settings → Pages → GitHub Actions** in GitHub; the workflow deploys only sanitized allowlisted evidence from `examples/demo-run/`, never pull-request artifacts. Phase 5 may replace this proof with a final six-candidate stabilization sample. See [Phase 4.5 product experience](docs/PHASE4_5-PRODUCT-EXPERIENCE.md).
+
 ## Phase boundaries
 
 Phase 1 contains the fixture, YAML trial schema, Codex and OpenCode native adapters, sequential worktree runner, and raw evidence preservation. Candidate count is configuration data: the first trial has six candidates, while adding a seventh changes only the trial file.
 
-Phase 3 adds identity-masked adjudication artifacts and `evaluation.json`. Phase 4 presents those finalized artifacts as static HTML and non-operative YAML. Neither phase adds dashboards, import fallback, plugin orchestration, controlled tool comparisons, parallel execution, additional candidate adapters, automatic routing, or AgentWorkbench v1 integration.
+Phase 3 adds identity-masked adjudication artifacts and `evaluation.json`. Phase 4 presents those finalized artifacts as static HTML and non-operative YAML. Phase 4.5 adds no new authority; it adds workflow and presentation-only product experience. These phases add no dashboards, import fallback, plugin orchestration, controlled tool comparisons, parallel execution, additional candidate adapters, automatic routing, or AgentWorkbench v1 integration.
 
-See [`docs/COMPETITION-SPRINT-ROADMAP.md`](docs/COMPETITION-SPRINT-ROADMAP.md) for the authoritative roadmap, [`SCOPE.md`](SCOPE.md) for boundaries, [`DECISIONS.md`](DECISIONS.md) for locked decisions, and [`IMPLEMENTATION_STATE.md`](IMPLEMENTATION_STATE.md) for current status.
+See [`docs/COMPETITION-SPRINT-ROADMAP.md`](docs/COMPETITION-SPRINT-ROADMAP.md) for the authoritative roadmap, [`SCOPE.md`](SCOPE.md) for boundaries, [`DECISIONS.md`](DECISIONS.md) for locked decisions, [`IMPLEMENTATION_STATE.md`](IMPLEMENTATION_STATE.md) for current status, and [Codex development provenance](docs/CODEX-DEVELOPMENT.md) for the documented contest record.
 
 ## Collaboration and provenance
 
