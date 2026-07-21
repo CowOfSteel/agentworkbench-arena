@@ -38,6 +38,7 @@ const candidateArtifacts = ["provenance.json", "telemetry.json", "validation.jso
 const semanticCriteria: SemanticCriterion[] = ["acceptance_coverage", "maintainability", "architecture_fit", "regression_risk", "unnecessary_complexity", "evidence_quality"];
 const semanticOrdinals = new Set<SemanticOrdinal>(["strong", "adequate", "weak", "insufficient_evidence"]);
 const noncausalStatement = "Arena compares complete configurations. Observed differences cannot be attributed to any single model, harness, provider, attention level, tool, or profile.";
+const recommendationSchemaVersion = "1.1";
 const hash = (value: string): string => createHash("sha256").update(value).digest("hex");
 const object = (value: unknown, label: string): JsonObject => { if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be an object`); return value as JsonObject; };
 const array = (value: unknown, label: string): any[] => { if (!Array.isArray(value)) throw new Error(`${label} must be an array`); return value; };
@@ -272,6 +273,32 @@ const configText = (value: string | null): string => value ?? "Not reported by h
 const link = (path: string): string => `<a href="${path.split('/').map(encodeURIComponent).join('/')}">${escapeHtml(path)}</a>`;
 const list = (items: string[], empty = "None reported"): string => items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p>${escapeHtml(empty)}</p>`;
 const linkList = (items: string[]): string => `<ul>${items.map((item) => `<li>${link(item)}</li>`).join("")}</ul>`;
+const plain = <T>(value: T): T => value === undefined ? value : JSON.parse(JSON.stringify(value)) as T;
+
+function recommendationDto(model: ReportModel): Record<string, unknown> {
+  const topology = {
+    candidate_count: model.topology.candidate_count,
+    held_constant_dimensions: [...model.topology.held_constant_dimensions],
+    varied_dimensions: model.topology.varied_dimensions.map((item) => ({ dimension: item.dimension, values: plain(item.values), incomplete: item.incomplete })),
+    controlled_sweeps: model.topology.controlled_sweeps.map((item) => ({ dimension: item.dimension, candidate_ids: [...item.candidates], values: item.values.map((value) => ({ candidate_id: value.candidate, value: plain(value.value) })) })),
+    duplicate_configuration_groups: model.topology.duplicate_configuration_groups.map((candidate_ids) => ({ candidate_ids: [...candidate_ids] })),
+    multi_variable_pair_count: model.topology.multi_variable_pair_count,
+    multi_variable_pairs: model.topology.multi_variable_pairs.map((item) => ({ candidate_ids: [...item.candidates], differing_dimensions: [...item.differing_dimensions] })),
+    multi_variable_pairs_truncated: model.topology.multi_variable_pairs_truncated,
+    uncomparable_pair_count: model.topology.uncomparable_pair_count,
+    supported_structural_claims: [...model.topology.supported_structural_claims],
+    unsupported_causal_claims: [...model.topology.unsupported_causal_claims]
+  };
+  const lenses = model.decisionLenses.map((lens) => ({ id: lens.id, label: lens.label, status: lens.status, candidate_ids: [...lens.candidateIds], ...(lens.values ? { values: plain(lens.values) } : {}), reason: lens.reason }));
+  return {
+    schema_version: recommendationSchemaVersion,
+    source: { run_id: model.runId, trial_id: model.trialId, evaluation_schema_version: model.evaluationSchemaVersion, comparison_mode: model.comparisonMode },
+    outcome: model.outcome, recommended_candidate: model.recommendedCandidate, tied_candidates: [...model.tiedCandidates], confidence: model.confidence, routing_applied: false,
+    ranking: model.candidates.map((candidate) => ({ candidate_id: candidate.id, opaque_label: candidate.label, eligibility: candidate.eligibility, hard_gate_status: candidate.hardGateStatus, source_completion_status: candidate.completionStatus, semantic_rank: candidate.semanticRank, semantic_tier: candidate.semanticTier, semantic_criteria: candidate.criteria ? plain(candidate.criteria) : null, exclusion_reasons: candidate.exclusions.map((item) => ({ gate_id: item.id, status: item.status, reason: item.reason })), reasons: candidate.eligibility === "eligible" ? [candidate.rationale, ...candidate.strengths].filter((item): item is string => Boolean(item)) : candidate.exclusions.map((item) => `${item.id}: ${item.reason}`), tradeoffs: [...candidate.risks], placement: { why: [...candidate.placement.why], why_not: [...candidate.placement.why_not] }, telemetry_coverage: { available: candidate.coverage.available, unavailable: candidate.coverage.unavailable, metrics: Object.fromEntries(Object.entries(candidate.coverage.metrics).map(([name, metric]) => [name, { status: metric.status, source: plain(metric.source) }])) }, evidence_references: ["evaluation.json", "adjudication.json", ...candidate.evidence] })),
+    comparison_topology: topology, decision_lenses: lenses, judge_execution: { status: model.judgeExecution.status, failure_classification: model.judgeExecution.failureClassification }, source_execution_limitations: [...model.sourceExecutionLimitations], evidence_references: [...model.rootEvidence], noncausal_statement: model.noncausalStatement,
+    ...(model.sampleMetadata ? { sample_metadata: { schema_version: model.sampleMetadata.schemaVersion, kind: model.sampleMetadata.kind, evidence_completeness_scope: model.sampleMetadata.evidenceCompletenessScope, omitted_artifacts: [...model.sampleMetadata.omittedArtifacts], retained_results: model.sampleMetadata.retainedResults } } : {})
+  };
+}
 
 export function renderReportHtml(model: ReportModel): string {
   const gates = [...new Set(model.candidates.flatMap((candidate) => candidate.gates.map((item) => item.id)))];
@@ -283,7 +310,9 @@ export function renderReportHtml(model: ReportModel): string {
   const coverageRows = metricNames.map((name) => `<tr><th scope="row">${escapeHtml(name)}</th>${model.candidates.map((candidate) => { const cell = candidate.coverage.metrics[name] ?? { status: "unavailable" as const, source: "not recorded" }; return `<td class="${escapeHtml(cell.status)}">${escapeHtml(cell.status)}<br><small>${escapeHtml(valueText(cell.source))}</small></td>`; }).join("")}</tr>`).join("");
   const criteriaRows = semanticCriteria.map((criterion) => `<tr><th scope="row">${escapeHtml(criterion)}</th>${model.candidates.map((candidate) => `<td>${escapeHtml(candidate.criteria?.[criterion] ?? "Not reported by harness")}</td>`).join("")}</tr>`).join("");
   const reveals = model.candidates.map((candidate) => `<section><h3>${escapeHtml(candidate.label)} revealed as ${escapeHtml(candidate.id)}</h3><p>${escapeHtml(candidate.rationale ?? "No accepted semantic ranking was available.")}</p>${list(candidate.strengths)}${list(candidate.risks)}</section>`).join("");
-  const topology = `<section><h2>Comparison topology</h2><p>Held constant: ${escapeHtml(model.topology.held_constant_dimensions.join(", ") || "none")}</p><p>Varied: ${escapeHtml(model.topology.varied_dimensions.map((item) => item.dimension).join(", ") || "none")}</p><p>Controlled sweeps: ${escapeHtml(model.topology.controlled_sweeps.map((group) => `${group.dimension} (${group.candidates.join(", ")})`).join("; ") || "none")}</p><p>Multi-variable pairs: ${model.topology.multi_variable_pair_count}; exact duplicate groups: ${model.topology.duplicate_configuration_groups.length}.</p>${list([...model.topology.supported_structural_claims, ...model.topology.unsupported_causal_claims])}</section>`;
+  const duplicates = model.topology.duplicate_configuration_groups.length ? model.topology.duplicate_configuration_groups.map((group) => group.join(", ")).join("; ") : "none";
+  const pairs = model.topology.multi_variable_pairs.length ? model.topology.multi_variable_pairs.map((pair) => `${pair.candidates.join(" vs ")} (${pair.differing_dimensions.join(", ")})`).join("; ") : "none";
+  const topology = `<section><h2>Comparison topology</h2><p>Held constant: ${escapeHtml(model.topology.held_constant_dimensions.join(", ") || "none")}</p><p>Varied: ${escapeHtml(model.topology.varied_dimensions.map((item) => item.dimension).join(", ") || "none")}</p><p>Controlled sweeps: ${escapeHtml(model.topology.controlled_sweeps.map((group) => `${group.dimension} (${group.candidates.join(", ")})`).join("; ") || "none")}</p><h3>Exact duplicate groups</h3><p>${escapeHtml(duplicates)}</p><h3>Multi-variable comparison examples</h3><p>${escapeHtml(pairs)}${model.topology.multi_variable_pairs_truncated ? ` (examples truncated after ${model.topology.multi_variable_pairs.length})` : ""}</p><h3>Supported structural claims</h3>${list(model.topology.supported_structural_claims)}<h3>Unsupported causal claims</h3>${list(model.topology.unsupported_causal_claims)}</section>`;
   const lenses = `<section><h2>Decision lenses</h2><p>Informational only; these never override controller-owned evaluation.</p><ul>${model.decisionLenses.map((lens) => `<li><strong>${escapeHtml(lens.label)}:</strong> ${escapeHtml(lens.status)}${lens.candidateIds.length ? ` — ${escapeHtml(lens.candidateIds.join(", "))}` : ""}<br><small>${escapeHtml(lens.reason)}</small></li>`).join("")}</ul></section>`;
   const sampleNotice = model.sampleMetadata ? `<section><h2>Sanitized derivative sample</h2><p>This report is a sanitized derivative sample. Evidence completeness applies to the source run; omitted source artifacts: ${escapeHtml(model.sampleMetadata.omittedArtifacts.join(", "))}.</p><p>${escapeHtml(model.sampleMetadata.retainedResults)} Historical source execution classifications below are retained as evidence; the accepted controller outcome remains authoritative.</p></section>` : "";
   const limitations = [...model.limitations, ...model.sourceExecutionLimitations];
@@ -291,15 +320,7 @@ export function renderReportHtml(model: ReportModel): string {
 }
 
 export function renderRecommendationYaml(model: ReportModel): string {
-  const document = {
-    schema_version: model.schemaVersion,
-    source: { run_id: model.runId, trial_id: model.trialId, evaluation_schema_version: model.evaluationSchemaVersion, comparison_mode: model.comparisonMode },
-    outcome: model.outcome, recommended_candidate: model.recommendedCandidate, tied_candidates: model.tiedCandidates, confidence: model.confidence, routing_applied: false,
-    ranking: model.candidates.map((candidate) => ({ candidate_id: candidate.id, opaque_label: candidate.label, eligibility: candidate.eligibility, hard_gate_status: candidate.hardGateStatus, source_completion_status: candidate.completionStatus, semantic_rank: candidate.semanticRank, semantic_tier: candidate.semanticTier, semantic_criteria: candidate.criteria, exclusion_reasons: candidate.exclusions.map((item) => ({ gate_id: item.id, status: item.status, reason: item.reason })), reasons: candidate.eligibility === "eligible" ? [candidate.rationale, ...candidate.strengths].filter(Boolean) : candidate.exclusions.map((item) => `${item.id}: ${item.reason}`), tradeoffs: candidate.risks, placement: candidate.placement, telemetry_coverage: candidate.coverage, evidence_references: ["evaluation.json", "adjudication.json", ...candidate.evidence] })),
-    comparison_topology: model.topology, decision_lenses: model.decisionLenses, judge_execution: model.judgeExecution, source_execution_limitations: model.sourceExecutionLimitations, evidence_references: model.rootEvidence, noncausal_statement: model.noncausalStatement,
-    ...(model.sampleMetadata ? { sample_metadata: { schema_version: model.sampleMetadata.schemaVersion, kind: model.sampleMetadata.kind, evidence_completeness_scope: model.sampleMetadata.evidenceCompletenessScope, omitted_artifacts: model.sampleMetadata.omittedArtifacts, retained_results: model.sampleMetadata.retainedResults } } : {})
-  };
-  return stringifyYaml(document, { lineWidth: 0 });
+  return stringifyYaml(recommendationDto(model), { lineWidth: 0, aliasDuplicateObjects: false });
 }
 
 async function atomicWrite(path: string, value: string): Promise<void> {

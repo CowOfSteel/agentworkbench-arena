@@ -14,6 +14,7 @@ export interface ComparisonTopology {
   duplicate_configuration_groups: string[][];
   multi_variable_pair_count: number;
   multi_variable_pairs: TopologyPair[];
+  multi_variable_pairs_truncated: boolean;
   uncomparable_pair_count: number;
   supported_structural_claims: string[];
   unsupported_causal_claims: string[];
@@ -65,5 +66,5 @@ export function analyzeTopology(input: TopologyCandidate[]): ComparisonTopology 
   multi_variable_pairs.push(...allPairs.slice(0, 24));
   const supported_structural_claims = controlled_sweeps.map((group) => `${group.candidates.join(", ")} differ only in ${group.dimension}.`);
   const unsupported_causal_claims = ["Topology is structural analysis only; it does not establish causal effects.", ...(allPairs.length ? ["Multi-variable comparisons cannot support a single-dimension causal claim."] : []), ...(uncomparable_pair_count ? ["Some pairs lack complete configuration provenance and are not structurally comparable."] : [])];
-  return { candidate_count: candidates.length, held_constant_dimensions, varied_dimensions, controlled_sweeps, duplicate_configuration_groups, multi_variable_pair_count: allPairs.length, multi_variable_pairs, uncomparable_pair_count, supported_structural_claims, unsupported_causal_claims };
+  return { candidate_count: candidates.length, held_constant_dimensions, varied_dimensions, controlled_sweeps, duplicate_configuration_groups, multi_variable_pair_count: allPairs.length, multi_variable_pairs, multi_variable_pairs_truncated: allPairs.length > multi_variable_pairs.length, uncomparable_pair_count, supported_structural_claims, unsupported_causal_claims };
 }

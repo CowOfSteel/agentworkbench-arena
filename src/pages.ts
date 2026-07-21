@@ -1,5 +1,5 @@
 import { lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { verifyReport } from "./report";
 
 const rootFiles = new Set(["manifest.json", "task-contract.json", "trial-snapshot.json", "identity-map.json", "evaluation.json", "adjudication.json", "judge-result.json", "sample-metadata.json", "recommendation.yml", "README.md"]);
@@ -7,6 +7,8 @@ const candidateFiles = new Set(["provenance.json", "telemetry.json", "validation
 const unsafe = /(?:(?:^|[^A-Za-z0-9])[A-Za-z]:[\\/]|\\\\[^\\/]+[\\/]|file:\/\/|\/(?:Users|home)\/|(?:access[_ -]?token|api[_ -]?key|password|secret|credential)\s*[:=])/i;
 
 const confined = (root: string, target: string): boolean => { const value = relative(root, target); return value !== "" && !value.startsWith("..") && !isAbsolute(value); };
+const comparable = (path: string): string => process.platform === "win32" ? path.toLocaleLowerCase() : path;
+const nested = (parent: string, child: string): boolean => { const value = relative(comparable(parent), comparable(child)); return value !== "" && !value.startsWith("..") && !isAbsolute(value); };
 
 async function regularFile(path: string): Promise<void> {
   const entry = await lstat(path);
@@ -17,8 +19,14 @@ export interface PagesStageResult { directory: string; index: string; files: str
 
 /** Copy the report's explicit public evidence allowlist into a disposable Pages directory. */
 export async function stagePagesSample(sourceDirectory: string, destinationDirectory: string): Promise<PagesStageResult> {
-  const source = await realpath(resolve(sourceDirectory)), destination = resolve(destinationDirectory);
-  if (source === destination || !confined(resolve(destination, ".."), destination)) throw new Error("Pages destination is unsafe");
+  const sourceRequested = resolve(sourceDirectory), sourceEntry = await lstat(sourceRequested).catch(() => null);
+  if (!sourceEntry?.isDirectory() || sourceEntry.isSymbolicLink()) throw new Error("Pages source is unsafe");
+  const source = await realpath(sourceRequested), destinationRequested = resolve(destinationDirectory), destinationEntry = await lstat(destinationRequested).catch(() => null);
+  if (destinationEntry) throw new Error("Pages destination must not already exist");
+  const parentRequested = dirname(destinationRequested), parent = await realpath(parentRequested).catch(() => null);
+  if (!parent || comparable(parent) !== comparable(parentRequested)) throw new Error("Pages destination has an unsafe symlink relationship");
+  const destination = join(parent, basename(destinationRequested));
+  if (comparable(source) === comparable(destination) || nested(source, destination) || nested(destination, source)) throw new Error("Pages destination is unsafe");
   const verified = await verifyReport(source);
   if (verified.status !== "VERIFIED") throw new Error("Pages source report must verify before staging");
   const names = await readdir(source, { withFileTypes: true });
@@ -38,17 +46,19 @@ export async function stagePagesSample(sourceDirectory: string, destinationDirec
   }
   files.sort();
   if (!files.includes("index.html")) throw new Error("Pages source report is missing");
-  await rm(destination, { recursive: true, force: true });
-  await mkdir(destination, { recursive: true });
-  for (const relativePath of files) {
-    const sourcePath = relativePath === "index.html" ? join(source, "report.html") : join(source, ...relativePath.split("/"));
-    await regularFile(sourcePath);
-    const content = await readFile(sourcePath, "utf8");
-    if (unsafe.test(content)) throw new Error("Pages source contains a secret or absolute path");
-    const target = join(destination, ...relativePath.split("/"));
-    if (!confined(destination, target)) throw new Error("Pages path escapes staging directory");
-    await mkdir(join(target, ".."), { recursive: true });
-    await writeFile(target, content, "utf8");
-  }
+  let created = false;
+  try {
+    await mkdir(destination); created = true;
+    for (const relativePath of files) {
+      const sourcePath = relativePath === "index.html" ? join(source, "report.html") : join(source, ...relativePath.split("/"));
+      await regularFile(sourcePath);
+      const content = await readFile(sourcePath, "utf8");
+      if (unsafe.test(content)) throw new Error("Pages source contains a secret or absolute path");
+      const target = join(destination, ...relativePath.split("/"));
+      if (!confined(destination, target)) throw new Error("Pages path escapes staging directory");
+      await mkdir(join(target, ".."), { recursive: true });
+      await writeFile(target, content, "utf8");
+    }
+  } catch (error) { if (created) await rm(destination, { recursive: true, force: true }); throw error; }
   return { directory: destination, index: join(destination, "index.html"), files };
 }

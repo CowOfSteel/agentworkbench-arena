@@ -35,7 +35,8 @@ function reasoningArgument(args: string[], command: string): "low" | "high" {
   throw new Error(`usage: arena ${command} <trial.yml> [--reasoning low|high]`);
 }
 
-export async function main(args: string[] = process.argv.slice(2)): Promise<number> {
+export interface CliDependencies { loadTrial?: typeof loadTrial; calibrate?: typeof calibrate; }
+export async function main(args: string[] = process.argv.slice(2), dependencies: CliDependencies = {}): Promise<number> {
   if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
     console.log(usage);
     return 0;
@@ -62,9 +63,9 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<numb
 
   if (args[0] === "calibrate") {
     if (!args[1]) throw new Error("usage: arena calibrate <trial.yml> [--reasoning low|high]");
-    const summary = await calibrate(await loadTrial(args[1]), { reasoning: reasoningArgument(args.slice(2), "calibrate"), progress: (message) => process.stderr.write(`${message}\n`) });
+    const summary = await (dependencies.calibrate ?? calibrate)(await (dependencies.loadTrial ?? loadTrial)(args[1]), { reasoning: reasoningArgument(args.slice(2), "calibrate"), progress: (message) => process.stderr.write(`${message}\n`) });
     console.log(JSON.stringify(summary));
-    return 0;
+    return summary.workflow_status === "completed" ? 0 : 1;
   }
 
   if (args[0] === "adjudicate" && args[1]) {

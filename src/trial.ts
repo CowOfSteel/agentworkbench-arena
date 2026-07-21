@@ -70,6 +70,8 @@ export function validateTrial(value: unknown): Trial {
     const candidate = object(item, `candidates[${index}]`);
     const adapter = text(candidate.adapter, `candidates[${index}].adapter`);
     if (adapter !== "codex-exec" && adapter !== "opencode-run") throw new Error(`unsupported adapter: ${adapter}`);
+    const toolProvenance = candidate.tool_provenance === undefined ? undefined : object(candidate.tool_provenance, `candidates[${index}].tool_provenance`);
+    if (toolProvenance?.explicitly_enabled !== undefined) strings(toolProvenance.explicitly_enabled, `candidates[${index}].tool_provenance.explicitly_enabled`);
     return {
       id: slug(candidate.id, `candidates[${index}].id`),
       adapter: adapter as AdapterId,
@@ -81,7 +83,7 @@ export function validateTrial(value: unknown): Trial {
       profile: candidate.profile === undefined ? undefined : text(candidate.profile, `candidates[${index}].profile`),
       permissionPolicy: candidate.permission_policy === undefined ? undefined : text(candidate.permission_policy, `candidates[${index}].permission_policy`),
       adapterOptions: candidate.adapter_options === undefined ? undefined : object(candidate.adapter_options, `candidates[${index}].adapter_options`),
-      toolProvenance: candidate.tool_provenance === undefined ? undefined : object(candidate.tool_provenance, `candidates[${index}].tool_provenance`)
+      toolProvenance
     };
   });
   for (const [index, candidate] of parsedCandidates.entries()) {
