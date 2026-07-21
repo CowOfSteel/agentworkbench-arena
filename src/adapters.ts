@@ -83,7 +83,7 @@ export async function terminateProcessTree(child: import("node:child_process").C
   try { process.kill(-child.pid, "SIGTERM"); } catch { child.kill("SIGTERM"); }
 }
 
-export interface RunProcessOptions { env?: NodeJS.ProcessEnv; redactions?: string[]; }
+export interface RunProcessOptions { env?: NodeJS.ProcessEnv; redactions?: string[]; stdin?: string; }
 
 interface ProcessInvocation { command: string; args: string[]; shell: boolean; }
 
@@ -117,11 +117,12 @@ export async function runProcess(command: string, args: string[], cwd: string, t
     let timedOut = false;
     let termination: Promise<void> | undefined;
     const invocation = processInvocation(command, args);
-    const child = spawn(invocation.command, invocation.args, { cwd, shell: invocation.shell, detached: process.platform !== "win32", stdio: ["ignore", "pipe", "pipe"], env: options.env, windowsHide: true, windowsVerbatimArguments: process.platform === "win32" && invocation.command.toLowerCase().endsWith("cmd.exe") });
+    const child = spawn(invocation.command, invocation.args, { cwd, shell: invocation.shell, detached: process.platform !== "win32", stdio: [options.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"], env: options.env, windowsHide: true, windowsVerbatimArguments: process.platform === "win32" && invocation.command.toLowerCase().endsWith("cmd.exe") });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     child.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk));
     child.stderr?.on("data", (chunk: Buffer) => stderr.push(chunk));
+    if (options.stdin !== undefined) { child.stdin?.once("error", () => undefined); child.stdin?.end(options.stdin); }
     child.once("error", (error) => { launchError = error.message; });
     const timer = setTimeout(() => {
       timedOut = true;
