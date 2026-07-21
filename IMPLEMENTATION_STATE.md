@@ -4,7 +4,7 @@
 
 Phase 4 static reporting and its bounded audit repair are complete. PR #4 merged to `main` at `ba100ccde184e1602446534c3c60cb5cd21a62c3`; its local Phase 1–4 and fixture suites plus Windows CI run `29796809979` passed. Reporting consumes finalized artifacts without adapters, preserves controller ordering and hard-gate authority, and generates deterministic `report.html` and non-operative `recommendation.yml`.
 
-Phase 4.5 product-experience implementation is in progress on `phase4-5/product-experience`. It adds no new evidence or semantic authority: its canonical calibration workflow, templates, preview, topology, presentation lenses, coverage, verification, and Pages staging remain bounded around the completed Phase 1–4 pipeline. `PHASE_4_5_GATE` is not ready for audit until its local verification and Windows CI pass. Phase 5 has not begun and `PHASE_5_READY` remains `NO`.
+Phase 4.5 product experience is complete on `phase4-5/product-experience`. Its canonical calibration workflow, templates, preview, topology, presentation lenses, coverage, verification, and Pages staging remain bounded around the completed Phase 1–4 pipeline and add no new evidence or semantic authority. Local verification and Windows CI run `29799574020` passed. `PHASE_4_5_GATE: READY_FOR_AUDIT`; Phase 5 has not begun and `PHASE_5_READY: NO`.
 
 Phase 3 masked semantic adjudication is complete. Its deterministic suite and Windows CI passed, and the bounded authenticated Sol Low retry-2 proof produced a validated `RECOMMENDATION`. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 2 deterministic evidence remains authoritative. Sol High remains reserved for later stabilization.
 
@@ -50,7 +50,7 @@ Phase 3 closeout implementation reference:
 - Added a typed completed-run loader, shared report model, self-contained HTML renderer, versioned YAML renderer, `arena report`, and offline `arena demo`. Reporting never invokes candidate or judge adapters and writes only its two outputs.
 - Added a sanitized committed bounded proof bundle under `examples/demo-run/`. Raw events, logs, worktrees, executable details, account/session material, and private judge transcripts are omitted while the accepted recommendation remains intact.
 - Phase 4 tests cover all outcome forms, candidate counts through 27, controller ordering, exclusion evidence, availability semantics, timing categories, artifact/path refusals, HTML/YAML safety, deterministic regeneration, source immutability, sample sanitization, offline operation, strict semantic criteria, source-execution limitations, and wide-table rendering.
-- Phase 4.5 adds a pure topology/preview layer, safe trial templates, injectable complete-workflow orchestration, presentation-only decision lenses and placement summaries, telemetry coverage, read-only byte-for-byte report verification, and a confined Pages sample staging helper. These changes remain under local verification; no native candidate, Sol, or deployment has been invoked during implementation.
+- Phase 4.5 adds a pure topology/preview layer, safe trial templates, injectable complete-workflow orchestration, presentation-only decision lenses and placement summaries, telemetry coverage, read-only byte-for-byte report verification, and a confined Pages sample staging helper. No native candidate, Sol, or deployment was invoked during implementation.
 
 ## Acceptance criteria status
 
@@ -68,6 +68,7 @@ Phase 3 closeout implementation reference:
 - [x] The Phase 3 code gate, Windows CI, and bounded authenticated Sol Low proof passed.
 - [x] Phase 4 report generation, recommendation output, CLI paths, and sanitized demo pass locally without native or model execution.
 - [x] Phase 4 audit-repair Windows CI run `29796809979` passed; the separate Phase 5 audit remains future work.
+- [x] Phase 4.5 product workflow, templates, preview, topology, lenses, coverage, read-only verification, Pages staging, sanitized demo, and Codex provenance documentation pass locally and in Windows CI run `29799574020`.
 - [x] `IMPORT_COMPARISON_FALLBACK` remains a documented contingency only; it is not the active mode and is not implemented.
 
 ## Commands and evidence verified
@@ -90,6 +91,7 @@ Phase 3 closeout implementation reference:
 - Authenticated Sol Low proof - passed on the retry-2 copied run with a validated `RECOMMENDATION`.
 - Phase 4 audit-repair local verification - `typecheck`, `build`, 47 tests, fixture typecheck/test, offline demo, and `git diff --check` passed.
 - Phase 4 audit-repair GitHub Actions - Windows workflow run `29796809979` passed all configured checks.
+- Phase 4.5 verification - `typecheck`, `build`, 53 tests, fixture typecheck/test, offline demo, six-candidate preview, read-only demo verification, and `git diff --check` passed; Windows workflow run `29799574020` passed.
 
 ## Historical evidence
 
@@ -98,4 +100,4 @@ Phase 3 closeout implementation reference:
 
 ## Next bounded step
 
-PR #4 is merged. Complete the bounded Phase 4.5 local checks and Windows CI, then request its separate audit. Do not begin Phase 5. Sol High remains reserved for final end-to-end stabilization and has not been invoked.
+PR #4 is merged and Phase 4.5 is ready for its separate audit on draft PR #5. Do not begin Phase 5. Sol High remains reserved for final end-to-end stabilization and has not been invoked.
