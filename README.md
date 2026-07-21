@@ -4,7 +4,7 @@ AgentWorkbench Arena is a local calibration tool for comparing complete coding-a
 
 Phase 1 native feasibility is complete with a passing `LIVE_MODE` gate. Phase 2 supplies deterministic telemetry, independent canonical validation, explicit hard gates, and a portable run manifest. Phase 3 can consume only finalized Phase 2 packets for identity-masked semantic adjudication; deterministic hard gates remain authoritative.
 
-Phase 3 implementation and deterministic tests are complete, and the real finalized Phase 2 dry-run has been verified without invoking Sol. One authenticated Sol Low proof remains as the final manual Phase 3 gate. Sol High is reserved for final end-to-end stabilization, and Phase 4 has not started.
+Phase 3 implementation, deterministic tests, Windows CI, and the bounded authenticated Sol Low proof are complete. The proof produced a validated two-candidate `RECOMMENDATION`. Sol High remains reserved for final end-to-end stabilization, and Phase 4 has not started.
 
 ## Quick start
 
