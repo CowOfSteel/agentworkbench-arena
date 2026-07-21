@@ -100,10 +100,17 @@ const baselineTap = [
   "✖ canonical scheduler acceptance: retries, drain, and final errors are deterministic (1ms)",
   "ℹ tests 3", "ℹ pass 1", "ℹ fail 2", "AssertionError [ERR_ASSERTION]", "AssertionError [ERR_ASSERTION]"
 ].join("\n");
+const baselineTap20 = [
+  "ok 1 - canonical scheduler acceptance: FIFO and concurrency never exceed the limit",
+  "not ok 2 - canonical scheduler acceptance: duplicate IDs, cancellation, and terminal ID reuse",
+  "not ok 3 - canonical scheduler acceptance: retries, drain, and final errors are deterministic",
+  "# tests 3", "# pass 1", "# fail 2", "code: 'ERR_ASSERTION'", "code: 'ERR_ASSERTION'"
+].join("\n");
 
 test("scheduler baseline contract accepts only the named defective behavioral evidence", async () => {
   const normal = async (_command: string, args: string[]) => args.includes("--test") ? { exit_code: 1, timeout: false, launch_error: null, stdout: baselineTap, stderr: "" } : { exit_code: 0, timeout: false, launch_error: null, stdout: "", stderr: "" };
   assert.equal((await verifySchedulerBaseline({ root, run: normal })).status, "VERIFIED");
+  assert.equal((await verifySchedulerBaseline({ root, run: async (_command, args) => args.includes("--test") ? { exit_code: 1, timeout: false, launch_error: null, stdout: baselineTap20, stderr: "" } : { exit_code: 0, timeout: false, launch_error: null, stdout: "", stderr: "" } })).status, "VERIFIED");
   const cases: Array<[string, any, string]> = [
     ["compile failure", async () => ({ exit_code: 1, timeout: false, launch_error: null, stdout: "", stderr: "" }), "compile_failure"],
     ["launch failure", async () => ({ exit_code: null, timeout: false, launch_error: "missing", stdout: "", stderr: "" }), "compile_launch_failure"],

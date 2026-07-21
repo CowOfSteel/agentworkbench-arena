@@ -40,7 +40,7 @@ export async function verifySchedulerBaseline(options: BaselineVerifierOptions =
   const output = `${acceptance.stdout}\n${acceptance.stderr}`;
   if (/ERR_MODULE_NOT_FOUND|Cannot find module|SyntaxError|npm ERR!|node:internal\/modules/i.test(output)) return { status: "FAILED", classification: "acceptance_infrastructure_failure" };
   if (acceptance.exit_code === 0) return { status: "FAILED", classification: "unexpected_acceptance_pass" };
-  if (!expected.every(([name, status]) => new RegExp(`${status === "passed" ? "[✔✓]" : "[✖×]"} ${escape(name)}`).test(output))) return { status: "FAILED", classification: "canonical_test_inventory_mismatch" };
+  if (!expected.every(([name, status]) => new RegExp(`${status === "passed" ? "(?:[✔✓]\\s+|ok\\s+\\d+\\s+-\\s+)" : "(?:[✖×]\\s+|not ok\\s+\\d+\\s+-\\s+)"}${escape(name)}`).test(output))) return { status: "FAILED", classification: "canonical_test_inventory_mismatch" };
   if (!/tests\s+3\b/i.test(output) || !/pass\s+1\b/i.test(output) || !/fail\s+2\b/i.test(output) || (output.match(/ERR_ASSERTION/g) ?? []).length < 2) return { status: "FAILED", classification: "unexpected_behavioral_failure" };
   return { status: "VERIFIED", classification: "expected_defective_baseline" };
 }
