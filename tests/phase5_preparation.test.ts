@@ -127,6 +127,8 @@ test("clean verification invokes the baseline contract as a normal passing comma
   const calls: string[] = [];
   const result = await verifyClean({ root, run: async (_command, args) => { calls.push(args.join(" ")); if (args.includes("pack")) return { exit_code: 0, timeout: false, launch_error: null, stdout: '[{"filename":"arena.tgz"}]' }; return { exit_code: 0, timeout: false, launch_error: null, stdout: "", stderr: "" }; } });
   assert.equal(result.status, "VERIFIED"); assert.ok(result.checks.some((check) => check.id === "scheduler_baseline_contract" && check.classification === "completed")); assert.ok(calls.some((value) => value.includes("scheduler:baseline-contract")));
+  const contractFailure = await verifyClean({ root, run: async (_command, args) => args.includes("scheduler:baseline-contract") ? { exit_code: 1, timeout: false, launch_error: null, stdout: "canonical_test_inventory_mismatch", stderr: "" } : { exit_code: 0, timeout: false, launch_error: null, stdout: args.includes("pack") ? '[{"filename":"arena.tgz"}]' : "", stderr: "" } });
+  assert.equal(contractFailure.status, "FAILED"); assert.ok(contractFailure.checks.some((check) => check.classification === "baseline_contract_canonical_test_inventory_mismatch"));
   let worktree = "";
   const failedRemoval = await verifyClean({ root, run: async (_command, args) => {
     if (args[0] === "worktree" && args[1] === "add") { worktree = args[3]; return { exit_code: 0, timeout: false, launch_error: null, stdout: "", stderr: "" }; }

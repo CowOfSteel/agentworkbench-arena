@@ -29,7 +29,8 @@ export async function runCleanCommand(command: string, args: string[], cwd: stri
 const record = (checks: CleanCheck[], id: string, result: CommandResult): boolean => {
   const passed = !result.timeout && !result.launch_error && result.exit_code === 0;
   const code = result.stderr?.match(/npm (?:ERR!|error) code\s+([A-Z0-9_]+)/i)?.[1]?.toLowerCase();
-  checks.push({ id, status: passed ? "passed" : "failed", classification: passed ? "completed" : result.timeout ? "timeout" : result.launch_error ? "launch_failure" : code ? `command_failure_${code}` : "command_failure" });
+  const baseline = id === "scheduler_baseline_contract" ? result.stdout.match(/\b(?:compile_timeout|compile_launch_failure|compile_failure|acceptance_timeout|acceptance_launch_failure|acceptance_infrastructure_failure|unexpected_acceptance_pass|canonical_test_inventory_mismatch|unexpected_behavioral_failure|expected_defective_baseline)\b/)?.[0] : undefined;
+  checks.push({ id, status: passed ? "passed" : "failed", classification: passed ? "completed" : result.timeout ? "timeout" : result.launch_error ? "launch_failure" : baseline ? `baseline_contract_${baseline}` : code ? `command_failure_${code}` : "command_failure" });
   return passed;
 };
 
