@@ -11,8 +11,10 @@ Arena brings native configuration execution, user-owned repository tasks, determ
 ## See the result first
 
 - [Open the committed sanitized report](examples/demo-run/report.html).
-- The expected Pages URL is <https://cowofsteel.github.io/agentworkbench-arena/>. Pages is not enabled yet; the local report is the guaranteed path.
-- The committed two-candidate sample is a complete, verified fallback. It requires no native credentials and does not depend on the unfinished flagship run.
+- The expected Pages URL is <https://cowofsteel.github.io/agentworkbench-arena/>. Pages is configured but not yet verified live; the local report is the guaranteed path.
+- The committed two-candidate sample is a complete, verified fallback. It requires no native credentials and remains the safe public sample because the flagship sanitizer rejected unsafe source material.
+
+The final human-controlled six-configuration trial completed successfully. Three candidates passed deterministic hard gates, and GPT-5.6 Sol High recommended Terra High through Codex with high confidence. The flagship source report remains private because the sanitizer rejected an absolute-path or sensitive-source condition; the repository therefore retains the independently verified sanitized proof as its safe zero-credential public demo.
 
 ## Zero-credential judge path
 
@@ -95,7 +97,7 @@ Four reported harness turns do not necessarily mean four provider API requests. 
 
 Codex implemented and repaired the repository scaffold, trial schema, native adapters, isolated runner, deterministic validation and telemetry, hard gates, masked judge controller, report, sanitation, diagnostics, Windows support, and verification tooling.
 
-GPT-5.6 candidate configurations may be evaluated through native harnesses. GPT-5.6 Sol is the identity-masked semantic adjudicator; deterministic eligibility remains controller-owned. Sol Low is the normal proof path, while final Sol High stabilization remains an explicit human action.
+GPT-5.6 candidate configurations may be evaluated through native harnesses. GPT-5.6 Sol is the identity-masked semantic adjudicator; deterministic eligibility remains controller-owned. Sol Low is the normal proof path; the final human-controlled Sol High adjudication completed successfully.
 
 The human identified the product problem, chose complete-configuration comparison, defined the AgentWorkbench use, required multi-candidate evidence and deterministic gates, controlled fairness and scope, chose identity masking and a static report, rejected semantic gate overrides and a weighted mega-score, and reserved final native/Sol High execution for human control.
 
@@ -127,7 +129,7 @@ npm run submission:preflight
 - One trial does not establish broad statistical causality or historical performance.
 - Telemetry coverage differs by harness and is not a quality score.
 - Arena does not automatically route AgentWorkbench work, operate a server, or maintain a historical database.
-- The committed sample is a sanitized bounded proof, not the unfinished six-candidate flagship result.
+- The committed sample is a sanitized bounded proof, not the private six-candidate flagship result rejected by the public-artifact sanitizer.
 
 ## AgentWorkbench direction
 
@@ -137,6 +139,7 @@ Arena is intended to become AgentWorkbench’s configuration-calibration subsyst
 
 ## Submission and provenance
 
+- Primary project `/feedback` Session ID: `019f80f2-5a79-7ff1-b3ac-24ccbeaf44a4`.
 - [Submission readiness](docs/SUBMISSION-READINESS.md)
 - [Final flagship runbook](docs/FINAL-FLAGSHIP-RUNBOOK.md)
 - [Development history](docs/DEVELOPMENT-HISTORY.md)
