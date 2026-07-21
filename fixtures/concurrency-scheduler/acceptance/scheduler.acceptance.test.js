@@ -68,19 +68,20 @@ test("canonical scheduler acceptance: retries, drain, and final errors are deter
     starts.push(attempt); active.maximum = Math.max(active.maximum, ++active.value);
     try { retryAttempts = attempt; if (attempt === 1) throw new Error("retry once"); return await retryGate.promise; } finally { active.value--; }
   });
+  const retryResult = settled(retry);
   const drain = scheduler.drain();
   let drained = false; void drain.then(() => { drained = true; });
   await until(() => starts.includes(2), "expected a bounded retry attempt to start");
   assert.equal(drained, false);
   retryGate.resolve("retried");
-  const retryResult = await settled(retry);
+  const retryOutcome = await retryResult;
   blocker.resolve("held"); await hold; await drain;
 
   let finalAttempts = 0;
   const final = scheduler.schedule("final", async ({ attempt }) => { finalAttempts = attempt; throw new Error("final task error"); });
   const finalResult = await settled(final);
   await scheduler.drain();
-  assert.equal(retryResult.status, "fulfilled");
+  assert.equal(retryOutcome.status, "fulfilled");
   assert.deepEqual(starts, [1, 2]);
   assert.equal(retryAttempts, 2);
   assert.equal(active.maximum, 2);
