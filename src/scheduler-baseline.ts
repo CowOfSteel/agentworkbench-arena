@@ -34,7 +34,7 @@ export async function verifySchedulerBaseline(options: BaselineVerifierOptions =
   if (compile.timeout) return { status: "FAILED", classification: "compile_timeout" };
   if (compile.launch_error) return { status: "FAILED", classification: "compile_launch_failure" };
   if (compile.exit_code !== 0) return { status: "FAILED", classification: "compile_failure" };
-  const acceptance = await execute(process.execPath, ["--test", "fixtures/concurrency-scheduler/acceptance/scheduler.acceptance.test.js"], root, timeout);
+  const acceptance = await execute(process.execPath, ["--test", "--test-reporter=tap", "fixtures/concurrency-scheduler/acceptance/scheduler.acceptance.test.js"], root, timeout);
   if (acceptance.timeout) return { status: "FAILED", classification: "acceptance_timeout" };
   if (acceptance.launch_error) return { status: "FAILED", classification: "acceptance_launch_failure" };
   const output = `${acceptance.stdout}\n${acceptance.stderr}`;
