@@ -40,7 +40,8 @@ export function codexArgs(request: CandidateRequest): string[] {
   const args = ["exec", "--json", "--output-last-message", join(request.artifactDirectory, "final-response.txt"), "--cd", request.worktree,
     "--model", request.candidate.model, "--sandbox", "workspace-write", "--ephemeral"];
   if (request.candidate.profile) args.push("--profile", request.candidate.profile);
-  for (const [key, value] of Object.entries(overrides)) args.push("--config", `${key}=${JSON.stringify(value)}`);
+  for (const [key, value] of Object.entries(overrides)) if (key !== "model_reasoning_effort" || !request.candidate.nativeReasoningEffort) args.push("--config", `${key}=${JSON.stringify(value)}`);
+  if (request.candidate.nativeReasoningEffort) args.push("--config", `model_reasoning_effort=${JSON.stringify(request.candidate.nativeReasoningEffort)}`);
   args.push("--config", 'approval_policy="never"');
   return [...args, request.prompt];
 }
@@ -48,7 +49,9 @@ export function codexArgs(request: CandidateRequest): string[] {
 export function openCodeArgs(request: CandidateRequest): string[] {
   const model = request.candidate.provider ? `${request.candidate.provider}/${request.candidate.model}` : request.candidate.model;
   const args = ["run", "--pure", "--auto", "--format", "json", "--dir", request.worktree, "--model", model];
-  if (request.candidate.attention) args.push("--variant", request.candidate.attention);
+  const nativeVariant = request.candidate.adapterOptions?.native_variant;
+  if (typeof nativeVariant === "string") args.push("--variant", nativeVariant);
+  else if (request.candidate.attention) args.push("--variant", request.candidate.attention);
   if (request.candidate.agent) args.push("--agent", request.candidate.agent);
   return [...args, request.prompt];
 }

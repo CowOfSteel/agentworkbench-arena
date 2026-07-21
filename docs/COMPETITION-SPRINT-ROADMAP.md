@@ -1169,7 +1169,7 @@ The system can produce:
 
 ### Current repository status
 
-Phase 3 implementation, deterministic tests, Windows CI, and the bounded authenticated Sol Low proof are complete. The proof produced a validated two-candidate `RECOMMENDATION`; Sol High remains reserved for later end-to-end stabilization. Phase 4 has not started.
+Phase 3 implementation, deterministic tests, Windows CI, and the bounded authenticated Sol Low proof are complete. The proof produced a validated two-candidate `RECOMMENDATION`; Sol High remains reserved for later end-to-end stabilization. Phase 4 is complete.
 
 ---
 
@@ -1204,6 +1204,26 @@ A nontechnical viewer can understand within 30 seconds:
 ### Current implementation status
 
 Phase 4 uses finalized Phase 2/3 artifacts as read-only inputs. The static report and non-operative recommendation preserve controller ordering, hard-gate authority, all accepted ordinal criteria, and availability-aware telemetry; the committed demo is a versioned sanitized derivative of the successful authenticated Sol Low bounded proof. Phase 5 clean-clone stabilization remains separate.
+
+---
+
+## Phase 4.5: Bounded product experience
+
+### Objective
+
+Make the completed pipeline easier to inspect and operate without changing Phase 1–4 evidence, adjudication, or report authority.
+
+### Bounded additions
+
+Add the canonical `arena calibrate` workflow, safe trial templates, offline preview, structural comparison topology, informational decision lenses, deterministic why/why-not summaries, telemetry coverage, read-only report verification, an offline public-sample path, and Codex development provenance. This phase does not renumber or replace Phase 5 or Phase 6.
+
+### Authority boundary
+
+Topology is structural—not causal—analysis. Lenses never override `evaluation.json`; verification is read-only; the public sample remains the bounded two-candidate proof until Phase 5 stabilization replaces it. No GUI, server, database, new adapter, judge profile, weighted score, or automatic routing is introduced.
+
+See [`PHASE4_5-PRODUCT-EXPERIENCE.md`](PHASE4_5-PRODUCT-EXPERIENCE.md) for product behavior and the Pages enablement instructions.
+
+The final Phase 4.5 repair adds identity-safe judge-response diagnostics and prepares—without executing—the separate `fixtures/concurrency-scheduler/` Phase 5 stabilization trial. It does not alter Phase 5 or Phase 6 scope.
 
 ---
 

@@ -18,6 +18,22 @@ export interface FractionalPriceAcceptance {
   stderr: string;
 }
 
+export interface CommandAcceptance {
+  validator: "configured-command";
+  status: "passed" | "failed";
+  args: string[];
+  started_at: string;
+  completed_at: string;
+  wall_clock_ms: number;
+  exit_code: number | null;
+  timeout: boolean;
+  stdout: string;
+  stderr: string;
+  launch_error: string | null;
+  failure_classification: "command_failure" | "launch_failure" | "timeout" | null;
+}
+export type AcceptanceResult = FractionalPriceAcceptance | CommandAcceptance;
+
 const sourceRelativePath = join("fixtures", "bounded-inventory", "src", "inventory.ts");
 const cases = [
   { name: "mixed-fractions", lines: [{ quantity: 2, unitPrice: 1.25 }, { quantity: 1, unitPrice: 0.33 }], expected: 2.83 },
@@ -86,6 +102,20 @@ export async function validateFractionalPrice(worktree: string, artifactDirector
       result = { validator: "fractional-price", status: "failed", cases: [], error: error instanceof Error ? error.message : String(error), stdout, stderr };
     }
   }
+  await writeFile(join(artifactDirectory, "acceptance.json"), JSON.stringify(result, null, 2));
+  return result;
+}
+
+/** Runs a trial-owned canonical acceptance command without shell composition. */
+export async function validateConfiguredAcceptance(worktree: string, artifactDirectory: string, args: string[], timeoutMs: number, arenaRoot: string): Promise<CommandAcceptance> {
+  const command = process.platform === "win32" && args[0] === "npm" ? process.execPath : args[0];
+  const commandArgs = process.platform === "win32" && args[0] === "npm"
+    ? [join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"), ...args.slice(1)] : args.slice(1);
+  const stdoutPath = join(artifactDirectory, "acceptance-stdout.log"), stderrPath = join(artifactDirectory, "acceptance-stderr.log");
+  const execution = await runProcess(command, commandArgs, worktree, timeoutMs, stdoutPath, stderrPath, { env: { ...process.env, PATH: `${join(arenaRoot, "node_modules", ".bin")}${process.platform === "win32" ? ";" : ":"}${process.env.PATH ?? ""}` } });
+  const [stdout, stderr] = await Promise.all([readFile(stdoutPath, "utf8").catch(() => ""), readFile(stderrPath, "utf8").catch(() => "")]);
+  const failure = execution.timedOut ? "timeout" : execution.launchError ? "launch_failure" : execution.exitCode === 0 ? null : "command_failure";
+  const result: CommandAcceptance = { validator: "configured-command", status: failure ? "failed" : "passed", args, started_at: execution.startedAt, completed_at: execution.completedAt, wall_clock_ms: execution.durationMs, exit_code: execution.exitCode, timeout: execution.timedOut, stdout, stderr, launch_error: execution.launchError ?? null, failure_classification: failure };
   await writeFile(join(artifactDirectory, "acceptance.json"), JSON.stringify(result, null, 2));
   return result;
 }
