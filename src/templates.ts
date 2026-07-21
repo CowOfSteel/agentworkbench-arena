@@ -12,6 +12,9 @@ task_contract: |
   REPLACE_TASK_CONTRACT
 allowed_paths:
   - src
+diagnostic_probe:
+  path: src/arena-diagnostic-probe.txt
+  content: "agentworkbench-arena-diagnostic\\n"
 forbidden_paths:
   - package.json
   - package-lock.json

@@ -87,6 +87,9 @@ task_contract: >-
 allowed_paths:
   - src
   - tests
+diagnostic_probe:
+  path: src/arena-diagnostic-probe.txt
+  content: "agentworkbench-arena-diagnostic\n"
 forbidden_paths:
   - package.json
   - acceptance

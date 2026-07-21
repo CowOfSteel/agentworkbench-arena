@@ -120,6 +120,12 @@ export function formattedChange(candidate: ReportCandidate): string {
   return added === null || deleted === null ? notReported : `+${formatCompactNumber(added)} / −${formatCompactNumber(deleted)}`;
 }
 
+export function formatRetryCount(metric: ReportMetric | undefined): string {
+  const value = metricNumber(metric);
+  if (value === null) return `Retries: ${notReported}`;
+  return `${formatCompactNumber(value)} ${value === 1 ? "retry" : "retries"}`;
+}
+
 export function formatMetricValue(name: string, metric: ReportMetric | undefined, metrics: Record<string, ReportMetric>): string {
   if (!metric || metric.availability === "unavailable") return notReported;
   if (durationMetrics.has(name)) return formatDuration(metricNumber(metric));
