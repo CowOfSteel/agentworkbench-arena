@@ -7,5 +7,6 @@ runs/
 .env.*
 !.env.example
 .arena/config.json
+phase5.local.yml
 .DS_Store
 Thumbs.db
