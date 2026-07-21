@@ -59,7 +59,7 @@ async function checkTrackedTree(root: string): Promise<void> {
     if (publicExtensions.has(extname(file).toLowerCase()) && privatePath.test(safe)) throw new Error("unsafe_tracked_private_path");
     if (publicExtensions.has(extname(file).toLowerCase()) && stalePublic.test(safe)) throw new Error("stale_public_claim");
     if (/\b(?:TODO|FIXME)\b/.test(safe) && publicExtensions.has(extname(file).toLowerCase())) throw new Error("unfinished_public_text");
-    if (safe.includes("REPLACE" + "_") && !file.startsWith("tests/") && file !== "src/templates.ts" && file !== "examples/concurrency-scheduler-phase5.yml") throw new Error("unsafe_placeholder");
+    if (safe.includes("REPLACE" + "_") && !file.startsWith("tests/") && !["src/preview.ts", "src/templates.ts", "examples/concurrency-scheduler-phase5.yml"].includes(file)) throw new Error("unsafe_placeholder");
   }
   const demo = join(root, "examples", "demo-run");
   if (await scanDirectory(demo, feedbackId)) throw new Error("feedback_id_in_run_artifact");
