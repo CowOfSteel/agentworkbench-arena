@@ -1,5 +1,5 @@
 import { CandidateAdapter, CodexExecAdapter, OpenCodeRunAdapter } from "./adapters";
-import { adjudicateRun, AdjudicationExecutionSummary, CodexJudgeAdapter, defaultJudgeConfig, JudgeAdapter, ReasoningEffort } from "./adjudication";
+import { adjudicateRun, AdjudicationExecutionSummary, CodexJudgeAdapter, judgeConfigForReasoning, JudgeAdapter, ReasoningEffort } from "./adjudication";
 import { generateReport, VerificationResult, verifyReport } from "./report";
 import { unresolvedPlaceholders } from "./preview";
 import { runTrial } from "./runner";
@@ -15,7 +15,7 @@ export async function calibrate(trial: Trial, options: CalibrateOptions = {}): P
   if (placeholders.length) throw new Error(`trial contains unresolved placeholders (${placeholders.join(", ")}); run arena preview <trial.yml> and replace them before calibrating`);
   const stages: Stages = { runTrial, adjudicateRun, generateReport, verifyReport, ...options.stages }, progress = options.progress ?? (() => undefined), reasoning = options.reasoning ?? "low";
   progress("Stage 1/3: running candidates"); const run = await stages.runTrial(trial, options.adapters ?? defaults());
-  progress("Stage 2/3: adjudicating finalized evidence"); const evaluation = await stages.adjudicateRun(run.directory, options.judge ?? new CodexJudgeAdapter(), { ...defaultJudgeConfig, reasoning_effort: reasoning });
+  progress("Stage 2/3: adjudicating finalized evidence"); const evaluation = await stages.adjudicateRun(run.directory, options.judge ?? new CodexJudgeAdapter(), judgeConfigForReasoning(reasoning));
   progress("Stage 3/3: generating static report"); const report = await stages.generateReport(run.directory);
   progress("Verifying generated report"); const verification = await stages.verifyReport(run.directory), execution = evaluation.adjudication_execution as AdjudicationExecutionSummary | undefined, outcome = String(evaluation.outcome), acceptedInconclusive = outcome === "INCONCLUSIVE" && execution?.accepted_verdict === true;
   const workflow_status = verification.status !== "VERIFIED" ? "verification_failed" : outcome === "INCONCLUSIVE" && !acceptedInconclusive ? "judge_execution_failed" : "completed";

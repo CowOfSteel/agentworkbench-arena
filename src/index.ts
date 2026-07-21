@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { CandidateAdapter, CodexExecAdapter, OpenCodeRunAdapter } from "./adapters";
-import { adjudicationDryRun, adjudicateRun, CodexJudgeAdapter, defaultJudgeConfig } from "./adjudication";
+import { adjudicationDryRun, adjudicateRun, CodexJudgeAdapter, judgeConfigForReasoning } from "./adjudication";
 import { runDiagnostic, runTrial } from "./runner";
 import { generateReport, verifyReport } from "./report";
 import { loadTrial } from "./trial";
@@ -76,7 +76,7 @@ export async function main(args: string[] = process.argv.slice(2), dependencies:
   if (args[0] === "adjudicate" && args[1]) {
     const tail = args.slice(2); const dryRun = tail.includes("--dry-run"); const reasoningIndex = tail.indexOf("--reasoning");
     if (tail.some((item, index) => item !== "--dry-run" && index !== reasoningIndex && index !== reasoningIndex + 1) || (reasoningIndex >= 0 && !["low", "high"].includes(tail[reasoningIndex + 1] ?? ""))) throw new Error("usage: arena adjudicate <run-directory> [--dry-run] [--reasoning low|high]");
-    const config = { ...defaultJudgeConfig, reasoning_effort: reasoningIndex >= 0 ? tail[reasoningIndex + 1] as "low" | "high" : defaultJudgeConfig.reasoning_effort };
+    const config = judgeConfigForReasoning(reasoningIndex >= 0 ? tail[reasoningIndex + 1] as "low" | "high" : "low");
     const result = dryRun ? await adjudicationDryRun(args[1], config) : await adjudicateRun(args[1], new CodexJudgeAdapter(), config);
     console.log(JSON.stringify(result, null, 2)); return 0;
   }
