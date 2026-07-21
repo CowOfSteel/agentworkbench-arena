@@ -28,3 +28,6 @@
 26. `report.html` and `recommendation.yml` share one typed presentation model and are deterministic for identical source artifacts. Report generation atomically replaces only those two files.
 27. `recommendation.yml` is versioned output with `routing_applied: false`; it does not modify AgentWorkbench routing and contains no weighted score or single-variable causal claim.
 28. The committed demo is a sanitized bounded two-candidate Sol Low proof. It preserves substantive evidence and accepted findings while omitting raw transcripts, executable details, worktrees, credentials, account data, and machine-local paths.
+29. Phase 4 preserves all six accepted Phase 3 ordinal criteria in its typed model and static outputs; it validates exact opaque-label coverage, criterion keys, and ordinal values before rendering.
+30. Recorded manifest completion states and judge execution classifications are presentation evidence, not a replacement for the accepted controller outcome. A sanitized demo labels historical classifications explicitly when retained.
+31. `sample-metadata.json` is an optional strict, versioned marker for a sanitized derivative. It declares the source-run evidence-completeness scope and intentional omissions; ordinary finalized reports have no sample notice.

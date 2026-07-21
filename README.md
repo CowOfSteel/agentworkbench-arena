@@ -56,11 +56,11 @@ The ten hard gates are explicit in each `telemetry.json`; an unavailable gate ca
 
 ## Phase 4 static report
 
-`arena report <run-directory>` validates a completed Phase 2/3 artifact set and atomically regenerates only `report.html` and `recommendation.yml`. Reporting is presentation-only: `evaluation.json` controls outcome, eligibility, and order; Phase 2 artifacts control deterministic facts; and accepted Phase 3 artifacts control semantic findings. The command invokes no candidate or judge adapter.
+`arena report <run-directory>` validates a completed Phase 2/3 artifact set and atomically regenerates only `report.html` and `recommendation.yml`. Reporting is presentation-only: `evaluation.json` controls outcome, eligibility, and order; Phase 2 artifacts control deterministic facts; and accepted Phase 3 artifacts control semantic findings. The report preserves all six accepted ordinal criteria, source execution statuses as evidence limitations, full availability-aware telemetry, and horizontally scrollable comparison matrices. The command invokes no candidate or judge adapter.
 
 The HTML report is self-contained with inline CSS and portable evidence links. The versioned YAML recommendation is non-operative (`routing_applied: false`) and does not modify AgentWorkbench routing. Unknown metrics remain explicit as `Not reported by harness`, and candidate execution, independent validation, and full-pipeline time remain separate.
 
-`npm run demo` regenerates the sanitized bounded proof under `examples/demo-run/` without authentication or network access. The sample omits raw logs, worktrees, executable details, private transcripts, and account/session data while preserving the real Low-proof recommendation.
+`npm run demo` regenerates the sanitized bounded proof under `examples/demo-run/` without authentication or network access. Its versioned `sample-metadata.json` labels it as a sanitized derivative whose completeness pertains to the source run; it omits raw logs, worktrees, executable details, private transcripts, and account/session data while preserving the real Low-proof recommendation and any historical source-execution classification as non-authoritative evidence.
 
 ## Phase boundaries
 

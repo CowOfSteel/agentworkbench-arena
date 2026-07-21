@@ -14,8 +14,16 @@ ranking:
     opaque_label: A
     eligibility: eligible
     hard_gate_status: passed
+    source_completion_status: authentication
     semantic_rank: 1
     semantic_tier: strong
+    semantic_criteria:
+      acceptance_coverage: strong
+      maintainability: strong
+      architecture_fit: strong
+      regression_risk: strong
+      unnecessary_complexity: strong
+      evidence_quality: strong
     exclusion_reasons: []
     reasons:
       - Passes every hard gate and both required validations. It directly implements final-only cent rounding in the smallest possible one-line change.
@@ -37,8 +45,16 @@ ranking:
     opaque_label: B
     eligibility: eligible
     hard_gate_status: passed
+    source_completion_status: completed
     semantic_rank: 2
     semantic_tier: strong
+    semantic_criteria:
+      acceptance_coverage: strong
+      maintainability: strong
+      architecture_fit: strong
+      regression_risk: strong
+      unnecessary_complexity: adequate
+      evidence_quality: strong
     exclusion_reasons: []
     reasons:
       - Also passes every hard gate and validation and correctly implements the contract, but introduces an unnecessary intermediate variable.
@@ -56,6 +72,12 @@ ranking:
       - candidates/opencode-luna-low/telemetry.json
       - candidates/opencode-luna-low/validation.json
       - candidates/opencode-luna-low/candidate.diff
+judge_execution:
+  status: completed
+  failureClassification: permission
+source_execution_limitations:
+  - "Historical source completion status for A: authentication."
+  - "Historical judge original failure classification: permission."
 evidence_references:
   - manifest.json
   - task-contract.json
@@ -64,4 +86,14 @@ evidence_references:
   - evaluation.json
   - adjudication.json
   - judge-result.json
+  - sample-metadata.json
 noncausal_statement: Arena compares complete configurations. Observed differences cannot be attributed to any single model, harness, provider, attention level, tool, or profile.
+sample_metadata:
+  schema_version: "1.0"
+  kind: sanitized_derivative
+  evidence_completeness_scope: source_run
+  omitted_artifacts:
+    - raw events and logs
+    - worktrees and executable locations
+    - private judge transcripts and account/session material
+  retained_results: Accepted deterministic and semantic results are retained from the finalized source run.

@@ -1203,7 +1203,7 @@ A nontechnical viewer can understand within 30 seconds:
 
 ### Current implementation status
 
-Phase 4 uses finalized Phase 2/3 artifacts as read-only inputs. The static report and non-operative recommendation preserve controller ordering and hard-gate authority; the committed demo is a sanitized copy of the successful authenticated Sol Low bounded proof. Phase 5 clean-clone stabilization remains separate.
+Phase 4 uses finalized Phase 2/3 artifacts as read-only inputs. The static report and non-operative recommendation preserve controller ordering, hard-gate authority, all accepted ordinal criteria, and availability-aware telemetry; the committed demo is a versioned sanitized derivative of the successful authenticated Sol Low bounded proof. Phase 5 clean-clone stabilization remains separate.
 
 ---
 

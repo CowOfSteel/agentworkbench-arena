@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "kind": "sanitized_derivative",
+  "evidence_completeness_scope": "source_run",
+  "omitted_artifacts": [
+    "raw events and logs",
+    "worktrees and executable locations",
+    "private judge transcripts and account/session material"
+  ],
+  "retained_results": "Accepted deterministic and semantic results are retained from the finalized source run."
+}
