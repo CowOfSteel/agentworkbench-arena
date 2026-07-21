@@ -24,6 +24,8 @@ export interface Candidate {
   toolProvenance?: Record<string, unknown>;
 }
 
+export interface DiagnosticProbe { path: string; content: string; }
+
 export interface Trial {
   id: string;
   repository: string;
@@ -39,6 +41,7 @@ export interface Trial {
   maxLaunchTransportRetries: number;
   manualIntervention: "forbidden";
   provenance: Record<string, unknown>;
+  diagnosticProbe?: DiagnosticProbe;
   candidates: Candidate[];
 }
 
@@ -54,6 +57,13 @@ const strings = (value: unknown, label: string): string[] => {
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) throw new Error(`${label} must be a string list`);
   return value as string[];
 };
+const relativeFile = (value: unknown, label: string): string => {
+  const result = text(value, label).replace(/\\/g, "/");
+  if (/^(?:[A-Za-z]:|\/|\\)/.test(result) || result.split("/").some((part) => part === "" || part === "." || part === "..")) throw new Error(`${label} must be a safe relative file path`);
+  return result;
+};
+const policyPrefix = (value: string): string => value.replace(/\\/g, "/").replace(/\/\*\*$/, "").replace(/\/$/, "");
+const coveredBy = (path: string, values: string[]): boolean => values.map(policyPrefix).some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 
 const windowsReservedNames = new Set(["con", "prn", "aux", "nul", ...Array.from({ length: 9 }, (_, index) => `com${index + 1}`), ...Array.from({ length: 9 }, (_, index) => `lpt${index + 1}`)]);
 const maximumSlugLength = 48;
@@ -100,6 +110,10 @@ export function validateTrial(value: unknown): Trial {
       toolProvenance
     };
   });
+  const allowedPaths = strings(raw.allowed_paths, "allowed_paths"), forbiddenPaths = strings(raw.forbidden_paths, "forbidden_paths");
+  const diagnosticRaw = raw.diagnostic_probe === undefined ? undefined : object(raw.diagnostic_probe, "diagnostic_probe");
+  const diagnosticProbe = diagnosticRaw === undefined ? undefined : { path: relativeFile(diagnosticRaw.path, "diagnostic_probe.path"), content: text(diagnosticRaw.content, "diagnostic_probe.content") };
+  if (diagnosticProbe && (!coveredBy(diagnosticProbe.path, allowedPaths) || coveredBy(diagnosticProbe.path, forbiddenPaths))) throw new Error("diagnostic_probe.path must be allowed and not forbidden");
   for (const [index, candidate] of parsedCandidates.entries()) {
     const executable = candidate.adapterOptions?.codex_executable;
     if (executable !== undefined && (candidate.adapter !== "codex-exec" || typeof executable !== "string" || !executable.trim())) {
@@ -129,8 +143,8 @@ export function validateTrial(value: unknown): Trial {
   if (raw.manual_intervention !== "forbidden") throw new Error("manual_intervention must be forbidden in Phase 1");
   return {
     id: slug(raw.id, "id"), repository: text(raw.repository, "repository"), baselineRef: text(raw.baseline_ref, "baseline_ref"),
-    taskContract: text(raw.task_contract, "task_contract"), allowedPaths: strings(raw.allowed_paths, "allowed_paths"),
-    forbiddenPaths: strings(raw.forbidden_paths, "forbidden_paths"), validationCommands: commands as string[][], acceptanceCommand,
+    taskContract: text(raw.task_contract, "task_contract"), allowedPaths,
+    forbiddenPaths, validationCommands: commands as string[][], acceptanceCommand, diagnosticProbe,
     timeoutMs, validationTimeoutMs, dependencyPolicy, maxLaunchTransportRetries: retries, manualIntervention: "forbidden",
     provenance: object(raw.provenance, "provenance"), candidates: parsedCandidates
   };

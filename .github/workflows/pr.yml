@@ -17,3 +17,6 @@ jobs:
       - run: npm test
       - run: npm run fixture:typecheck
       - run: npm run fixture:test
+      - run: npm run scheduler:typecheck
+      - run: npm run scheduler:test
+      - run: npm run verify:clean

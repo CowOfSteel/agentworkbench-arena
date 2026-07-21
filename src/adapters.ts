@@ -10,6 +10,7 @@ export interface DoctorResult {
   adapter: string; ok: boolean; version?: string; error?: string;
   executable_status?: "available" | "unavailable" | "version_unavailable";
   authentication?: { existing_cli_state: "usable" | "unavailable"; optional_access_token: "present" | "absent" };
+  configuration_layering?: { status: "composed" | "blocked"; reason: string };
 }
 export interface CandidateRequest { candidate: Candidate; worktree: string; artifactDirectory: string; prompt: string; timeoutMs: number; }
 export interface CandidateExecution {
@@ -33,6 +34,12 @@ export const openCodePermissionConfig = {
     websearch: "deny"
   }
 } as const;
+
+/** OpenCode merges inline configuration with provider configuration from other sources. */
+export function openCodeEnvironment(environment: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  if (environment.OPENCODE_CONFIG_CONTENT?.trim()) throw new Error("OpenCode inline configuration cannot be safely composed; move provider configuration to OPENCODE_CONFIG or the standard OpenCode config before running Arena");
+  return { ...environment, OPENCODE_CONFIG_CONTENT: JSON.stringify(openCodePermissionConfig) };
+}
 
 export function codexArgs(request: CandidateRequest): string[] {
   const options = request.candidate.adapterOptions ?? {};
@@ -135,9 +142,9 @@ export async function runProcess(command: string, args: string[], cwd: string, t
   });
 }
 
-interface CommandStatus { ok: boolean; stdout: string; error?: string; unavailable: boolean; }
+export interface CommandStatus { ok: boolean; stdout: string; error?: string; unavailable: boolean; }
 
-async function commandStatus(command: string, args: string[]): Promise<CommandStatus> {
+export async function commandStatus(command: string, args: string[]): Promise<CommandStatus> {
   if (process.platform === "win32" && isAbsolute(command) && extname(command).toLowerCase() === ".cmd" && !await access(command).then(() => true).catch(() => false)) {
     return { ok: false, stdout: "", error: `${command} is unavailable`, unavailable: true };
   }
@@ -190,7 +197,7 @@ export function sanitizeExecutablePath(path: string, home = homedir()): string {
   return path;
 }
 
-async function openCodeCommand(): Promise<string> {
+export async function openCodeCommand(): Promise<string> {
   if (process.platform !== "win32") return "opencode";
   const { execFile } = await import("node:child_process");
   const shims = await new Promise<string[]>((resolve) => execFile("where.exe", ["opencode"], { shell: false }, (_error, stdout) => resolve(stdout.split(/\r?\n/).filter(Boolean))));
@@ -253,14 +260,17 @@ export class CodexExecAdapter implements CandidateAdapter {
 }
 
 export class OpenCodeRunAdapter implements CandidateAdapter {
-  async doctor(): Promise<DoctorResult> { return executableVersion(await openCodeCommand(), "opencode"); }
+  async doctor(): Promise<DoctorResult> {
+    const executable = await openCodeCommand(), version = await executableVersion(executable, "opencode");
+    if (!version.ok) return version;
+    const auth = await commandStatus(executable, ["auth", "list"]);
+    const blocked = Boolean(process.env.OPENCODE_CONFIG_CONTENT?.trim());
+    return { ...version, ok: auth.ok && !blocked, authentication: { existing_cli_state: auth.ok ? "usable" : "unavailable", optional_access_token: "absent" }, configuration_layering: blocked ? { status: "blocked", reason: "existing OPENCODE_CONFIG_CONTENT cannot be safely composed" } : { status: "composed", reason: "Arena supplies permission-only inline configuration and preserves OPENCODE_CONFIG" }, ...(auth.ok || blocked ? {} : { error: "OpenCode authentication status unavailable; run opencode auth list." }) };
+  }
   async execute(request: CandidateRequest): Promise<CandidateExecution> {
     const args = openCodeArgs(request);
-    const configPath = join(request.artifactDirectory, "opencode-config.json");
-    const config = JSON.stringify(openCodePermissionConfig, null, 2);
-    await writeFile(configPath, config);
     const execution = await runProcess(await openCodeCommand(), args, request.worktree, request.timeoutMs, join(request.artifactDirectory, "stdout.log"), join(request.artifactDirectory, "stderr.log"), {
-      env: { ...process.env, OPENCODE_CONFIG: configPath, OPENCODE_CONFIG_CONTENT: config }
+      env: openCodeEnvironment()
     });
     const raw = await readFile(join(request.artifactDirectory, "stdout.log"), "utf8").catch(() => "");
     const final = extractOpenCodeText(raw);

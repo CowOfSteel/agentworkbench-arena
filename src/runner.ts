@@ -373,15 +373,16 @@ export async function runDiagnostic(trial: Trial, candidateId: string, adapters:
   const baseline = await git(repository, ["rev-parse", trial.baselineRef]);
   const directory = outputDirectory ? resolve(outputDirectory) : resolve("runs", `${trial.id}-diagnostic-${candidateId}-${stamp()}`);
   await mkdir(join(directory, "candidates"), { recursive: true });
-  const taskContract = "Create only fixtures/bounded-inventory/src/arena-write-probe.txt containing exactly phase1-write-probe followed by a newline, then terminate.";
+  const probe = trial.diagnosticProbe ?? { path: "fixtures/bounded-inventory/src/arena-write-probe.txt", content: "phase1-write-probe\n" };
+  const taskContract = `Create only ${probe.path} containing exactly the supplied content, then terminate.\n\n${probe.content}`;
   const diagnosticTrial = { ...trial, timeoutMs: Math.min(trial.timeoutMs, 60_000) };
   const result = await candidateRun(diagnosticTrial, candidate, repository, baseline, directory, adapter, { taskContract, validationCommands: [], acceptance: false });
   const [marker, record] = await Promise.all([
-    readFile(join(result.directory, "worktree", "fixtures", "bounded-inventory", "src", "arena-write-probe.txt"), "utf8").catch(() => undefined),
+    readFile(join(result.directory, "worktree", ...probe.path.split("/")), "utf8").catch(() => undefined),
     readFile(join(result.directory, "execution.json"), "utf8").then((text) => JSON.parse(text) as { forbidden_path_changes: string[]; validation_side_effects: boolean })
   ]);
-  const passed = marker === "phase1-write-probe\n" && result.execution.exitCode === 0 && !result.execution.timedOut && !result.execution.failureKind && record.forbidden_path_changes.length === 0 && !record.validation_side_effects;
+  const passed = marker === probe.content && result.execution.exitCode === 0 && !result.execution.timedOut && !result.execution.failureKind && record.forbidden_path_changes.length === 0 && !record.validation_side_effects;
   const diagnosticPath = join(directory, "diagnostic.json");
-  await writeFile(diagnosticPath, JSON.stringify({ candidate_id: candidate.id, baseline, passed, marker: marker === "phase1-write-probe\n", clean_termination: result.execution.exitCode === 0 && !result.execution.timedOut && !result.execution.failureKind, forbidden_path_changes: record.forbidden_path_changes, validation_side_effects: record.validation_side_effects }, null, 2));
+  await writeFile(diagnosticPath, JSON.stringify({ candidate_id: candidate.id, baseline, passed, probe_path: probe.path, marker: marker === probe.content, clean_termination: result.execution.exitCode === 0 && !result.execution.timedOut && !result.execution.failureKind, forbidden_path_changes: record.forbidden_path_changes, validation_side_effects: record.validation_side_effects }, null, 2));
   return { directory, candidate: result, passed, diagnosticPath };
 }

@@ -25,8 +25,10 @@ npm install
 npm run build
 npm test
 npm run demo
+npm run verify:clean
 npm start -- init practical-comparison trial.yml
 npm start -- preview trial.yml
+npm start -- doctor examples/concurrency-scheduler-phase5.yml
 npm start -- verify examples/demo-run
 # Human-run only when ready to use native candidates and Sol:
 npm start -- calibrate trial.yml --reasoning low
@@ -100,6 +102,14 @@ Before a human runs this template, resolve each `REPLACE_*` value and record ins
 ```text
 git tag -a phase5-concurrency-scheduler-baseline -m "Phase 5 scheduler baseline" <baseline-commit>
 ```
+
+## Phase 5 reproducibility and stabilization
+
+`npm run verify:clean` creates and removes an isolated Git worktree, proves the offline build/demo/report path, and smoke-tests the installed `arena` bin. The intentionally incomplete scheduler baseline must fail `npm run scheduler:acceptance` quickly; clean verification treats that controlled failure as proof that the candidate task remains meaningful.
+
+`arena doctor <trial.yml>` reports adapter, per-candidate, and provider-route readiness without invoking a coding model. It rejects unresolved placeholders and unsafe OpenCode inline configuration composition. `arena sanitize-sample <verified-run> <output>` creates a sanitized derivative without changing the verified source run.
+
+See [the Phase 5 runbook](docs/PHASE5-RUNBOOK.md) for offline sample mode, live prerequisites, the exact human-only flagship sequence, privacy limits, Pages enablement, and repository-access checks. See [environment resolution](docs/PHASE5-ENVIRONMENT-RESOLUTION.md) for the nonsecret identifiers established locally.
 
 Phase 1 contains the fixture, YAML trial schema, Codex and OpenCode native adapters, sequential worktree runner, and raw evidence preservation. Candidate count is configuration data: the first trial has six candidates, while adding a seventh changes only the trial file.
 

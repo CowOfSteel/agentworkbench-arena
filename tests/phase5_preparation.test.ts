@@ -1,16 +1,19 @@
 import { strict as assert } from "node:assert";
-import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { execFileSync, spawnSync } from "node:child_process";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
-import { codexArgs, openCodeArgs } from "../src/adapters";
+import { codexArgs, openCodeArgs, openCodeEnvironment, processInvocation } from "../src/adapters";
 import { validateConfiguredAcceptance } from "../src/acceptance";
 import { responseCharacterLimit } from "../src/adjudication";
 import { previewTrial } from "../src/preview";
 import { configurationHash, reasoningProvenance, trialSnapshot } from "../src/telemetry";
 import { loadTrial, validateTrial } from "../src/trial";
 import { topologyFromTrial } from "../src/topology";
+import { doctorTrial } from "../src/doctor";
+import { verifyClean } from "../src/clean-verify";
+import { sanitizeSample } from "../src/sanitize";
 import { parse } from "yaml";
 
 const root = resolve(__dirname, "..", "..");
@@ -32,8 +35,9 @@ test("native effort fields preserve harness literals, conflicts, mapping, snapsh
 
 test("six-label response ceiling stays bounded and the flagship remains intentionally blocked", async () => {
   assert.equal(responseCharacterLimit(6), 16_000); assert.equal(responseCharacterLimit(27), 32_000); assert.equal(responseCharacterLimit(100), 32_000);
-  const trial = await loadTrial(resolve(root, "examples", "concurrency-scheduler-phase5.yml")), preview = previewTrial(trial);
-  assert.equal(trial.candidates.length, 6); assert.equal(preview.topology.distinct_configuration_count, 6); assert.ok(preview.placeholder_warnings.some((value) => value.startsWith("REPLACE_"))); assert.ok(preview.topology.varied_dimensions.some((item) => item.dimension === "provider_route")); assert.equal(preview.topology.controlled_sweeps.length, 0);
+  const flagship = parse(await readFile(resolve(root, "examples", "concurrency-scheduler-phase5.yml"), "utf8")), trial = validateTrial(flagship), preview = previewTrial(trial);
+  assert.equal(trial.candidates.length, 6); assert.equal(preview.topology.distinct_configuration_count, 6); assert.ok(preview.placeholder_warnings.some((value) => value.startsWith("REPLACE_"))); assert.ok(preview.topology.varied_dimensions.some((item) => item.dimension === "provider_route")); assert.equal(preview.topology.controlled_sweeps.length, 0); assert.equal(trial.diagnosticProbe?.path, "fixtures/concurrency-scheduler/src/arena-write-probe.txt");
+  assert.throws(() => validateTrial({ ...flagship, diagnostic_probe: { path: "../unsafe", content: "no" } }), /safe relative/);
 });
 
 test("scheduler fixture typechecks, exposes the class API, and keeps canonical acceptance forbidden", async () => {
@@ -42,10 +46,56 @@ test("scheduler fixture typechecks, exposes the class API, and keeps canonical a
   assert.match(source, /class TaskScheduler/); assert.match(source, /schedule<T>/); assert.match(source, /cancel\(/); assert.match(source, /drain\(/); assert.ok((parse(trial).forbidden_paths as string[]).includes("fixtures/concurrency-scheduler/acceptance"));
 });
 
+test("canonical scheduler acceptance is complete, fast, and intentionally fails the defective baseline", async () => {
+  const acceptance = await readFile(resolve(root, "fixtures", "concurrency-scheduler", "acceptance", "scheduler.acceptance.test.js"), "utf8");
+  assert.match(acceptance, /signals\[0\]\?\.aborted/); assert.match(acceptance, /duplicate IDs, cancellation, and terminal ID reuse/); assert.match(acceptance, /retries, drain, and final errors/);
+  const result = spawnSync(process.execPath, ["--test", resolve(root, "fixtures", "concurrency-scheduler", "acceptance", "scheduler.acceptance.test.js")], { cwd: root, timeout: 5_000 });
+  assert.equal(result.signal, null);
+});
+
 test("configured canonical acceptance uses an argument array and retains its own evidence", async () => {
   const directory = await mkdtemp(join(tmpdir(), "arena-configured-acceptance-"));
   try {
     const result = await validateConfiguredAcceptance(directory, directory, [process.execPath, "-e", "process.stdout.write('accepted')"], 1_000, root);
     assert.equal(result.validator, "configured-command"); assert.equal(result.status, "passed"); assert.equal(result.stdout, "accepted"); assert.equal(JSON.parse(await readFile(join(directory, "acceptance.json"), "utf8")).args[0], process.execPath);
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("route-aware doctor reports all candidates, deduplicates routes, and never runs a task", async () => {
+  const raw = await loadTrial(resolve(root, "examples", "concurrency-scheduler-phase5.yml"));
+  const adapters: any = new Map([["codex-exec", { doctor: async () => ({ adapter: "codex", ok: true, executable_status: "available", authentication: { existing_cli_state: "usable", optional_access_token: "absent" } }) }], ["opencode-run", { doctor: async () => ({ adapter: "opencode", ok: true, executable_status: "available", authentication: { existing_cli_state: "usable", optional_access_token: "absent" }, configuration_layering: { status: "composed", reason: "fixture" } }) }]]);
+  let calls = 0;
+  const dependencies = { openCodeCommand: async () => "fake-opencode", commandStatus: async (_command: string, args: string[]) => { calls++; return args[0] === "auth" ? { ok: true, stdout: "OpenAI\nOpenCode Go\nDeepSeek", unavailable: false } : { ok: true, stdout: `${args[1]}/deepseek-v4-flash\n${args[1]}/gpt-5.6-terra`, unavailable: false }; } };
+  const blocked = await doctorTrial(raw, adapters, dependencies);
+  assert.equal(blocked.candidates.length, 6); assert.equal(blocked.provider_routes.length, 4); assert.equal(blocked.readiness, "blocked"); assert.ok(blocked.candidates.filter((candidate) => candidate.adapter === "opencode-run").every((candidate) => candidate.failure_classification === "unresolved_placeholder"));
+  const ready = { ...raw, candidates: raw.candidates.map((candidate) => candidate.adapter === "opencode-run" ? { ...candidate, adapterOptions: { native_variant: "max" } } : candidate) };
+  const report = await doctorTrial(ready, adapters, dependencies);
+  assert.equal(report.readiness, "ready"); assert.ok(calls > 0); assert.ok(report.candidates.every((candidate) => candidate.command_shape.at(-1)?.startsWith("<task-contract:")));
+  const unavailable = await doctorTrial(ready, adapters, { ...dependencies, commandStatus: async (_command: string, args: string[]) => args[0] === "models" ? { ok: false, stdout: "", error: "offline", unavailable: false } : { ok: true, stdout: "OpenAI\nOpenCode Go\nDeepSeek", unavailable: false } });
+  assert.ok(unavailable.candidates.some((candidate) => candidate.failure_classification === "model_discovery_unavailable"));
+});
+
+test("OpenCode permission layering preserves a separate provider config and refuses inline replacement", () => {
+  const environment = openCodeEnvironment({ OPENCODE_CONFIG: "nonsecret-provider.json" });
+  assert.equal(environment.OPENCODE_CONFIG, "nonsecret-provider.json"); assert.doesNotMatch(environment.OPENCODE_CONFIG_CONTENT ?? "", /provider/i); assert.match(environment.OPENCODE_CONFIG_CONTENT ?? "", /webfetch/);
+  assert.throws(() => openCodeEnvironment({ OPENCODE_CONFIG_CONTENT: '{"provider":{"fixture":{}}}' }), /cannot be safely composed/);
+  assert.equal(processInvocation("tool.cmd", ["one"], "win32").command.toLowerCase().endsWith("cmd.exe"), true);
+});
+
+test("clean verification accepts only the expected baseline acceptance failure", async () => {
+  const calls: string[] = [];
+  const result = await verifyClean({ root, run: async (_command, args) => { calls.push(args.join(" ")); if (args.includes("pack")) return { exit_code: 0, timeout: false, launch_error: null, stdout: '[{"filename":"arena.tgz"}]' }; if (args.includes("scheduler:acceptance")) return { exit_code: 1, timeout: false, launch_error: null, stdout: "" }; return { exit_code: 0, timeout: false, launch_error: null, stdout: "" }; } });
+  assert.equal(result.status, "VERIFIED"); assert.ok(result.checks.some((check) => check.id === "scheduler_baseline_acceptance" && check.classification === "expected_baseline_acceptance_failure")); assert.ok(calls.some((value) => value.includes("worktree add")));
+});
+
+test("sample sanitation is deterministic, verifies output, and preserves the source run", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-sanitize-")), source = join(temporary, "source"), output = join(temporary, "sample");
+  try {
+    await cp(resolve(root, "examples", "demo-run"), source, { recursive: true });
+    const before = await readFile(join(source, "manifest.json"), "utf8");
+    const first = await sanitizeSample(source, output), report = await readFile(join(output, "report.html"), "utf8");
+    assert.equal(first.report, "report.html"); assert.match(report, /Arena static product report/); assert.equal(await readFile(join(source, "manifest.json"), "utf8"), before);
+    await sanitizeSample(source, output); assert.equal(await readFile(join(source, "manifest.json"), "utf8"), before);
+    await writeFile(join(source, "manifest.json"), "{}", "utf8"); await assert.rejects(() => sanitizeSample(source, join(temporary, "rejected")), /verified/);
+  } finally { await rm(temporary, { recursive: true, force: true }); }
 });
