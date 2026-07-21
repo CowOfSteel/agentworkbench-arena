@@ -1,0 +1,18 @@
+{
+  "status": "completed",
+  "original": {
+    "started_at": "2026-07-20T23:18:10.709Z",
+    "completed_at": "2026-07-20T23:18:34.380Z",
+    "wall_clock_ms": 23670,
+    "exit_code": 0,
+    "timeout": false,
+    "stdout": "<omitted: sanitized sample>",
+    "stderr": "<omitted: sanitized sample>",
+    "response_text": "<omitted: accepted response retained in adjudication.json>",
+    "launch_error": null,
+    "failure_classification": "permission",
+    "args": []
+  },
+  "repair": null,
+  "error": null
+}

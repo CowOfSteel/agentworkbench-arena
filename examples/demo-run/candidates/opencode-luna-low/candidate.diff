@@ -1,0 +1,11 @@
+diff --git a/fixtures/bounded-inventory/src/inventory.ts b/fixtures/bounded-inventory/src/inventory.ts
+--- a/fixtures/bounded-inventory/src/inventory.ts
++++ b/fixtures/bounded-inventory/src/inventory.ts
+@@ -5,5 +5,6 @@ export interface InventoryLine {
+ 
+ // Public signature is part of the fixture contract.
+ export function inventoryTotal(lines: InventoryLine[]): number {
+-  return lines.reduce((total, line) => total + line.quantity * Math.round(line.unitPrice), 0);
++  const total = lines.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0);
++  return Math.round(total * 100) / 100;
+ }

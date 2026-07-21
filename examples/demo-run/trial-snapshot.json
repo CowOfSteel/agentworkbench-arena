@@ -1,0 +1,17 @@
+{
+  "schema_version": "2.0",
+  "trial_id": "phase3-sol-low-proof",
+  "task_contract_hash": "b4f3c40d87a9e6e3a621385fb9d17e6079189bbc7e45ce33db65a8e4d8c9edf1",
+  "allowed_paths": ["fixtures/bounded-inventory/src", "fixtures/bounded-inventory/tests"],
+  "forbidden_paths": ["package-lock.json", "package.json", "src", "tests"],
+  "validation_commands": [["npm", "run", "fixture:typecheck"], ["npm", "run", "fixture:test"]],
+  "timeout_ms": 180000,
+  "validation_timeout_ms": 180000,
+  "dependency_policy": "no_changes",
+  "retry_limit": 1,
+  "manual_intervention": "forbidden",
+  "candidates": [
+    { "id": "codex-luna-low", "configuration_hash": "75a14fbc7ee0240b50aeefb22588746db26282138f711d0aa1eb09f7cb856db4" },
+    { "id": "opencode-luna-low", "configuration_hash": "702390d3eedc85328850c8f0f81e5d107ea620b9432aec65cdc3fc479dbe476d" }
+  ]
+}

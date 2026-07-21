@@ -1,0 +1,8 @@
+{
+  "schema_version": "2.0",
+  "commands": [
+    { "args": ["npm", "run", "fixture:typecheck"], "working_directory": "<path:worktree>", "started_at": "2026-07-20T21:29:15.309Z", "completed_at": "2026-07-20T21:29:15.840Z", "wall_clock_ms": 531, "exit_code": 0, "timeout": false, "stdout": "typecheck passed", "stderr": "", "launch_error": null, "failure_classification": null, "status": "passed" },
+    { "args": ["npm", "run", "fixture:test"], "working_directory": "<path:worktree>", "started_at": "2026-07-20T21:29:15.841Z", "completed_at": "2026-07-20T21:29:16.759Z", "wall_clock_ms": 918, "exit_code": 0, "timeout": false, "stdout": "bounded inventory test passed", "stderr": "", "launch_error": null, "failure_classification": null, "status": "passed" }
+  ],
+  "wall_clock_ms": 1451
+}

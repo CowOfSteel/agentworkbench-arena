@@ -1,0 +1,59 @@
+{
+  "schema_version": "2.0",
+  "finalization_status": "complete",
+  "provenance": {
+    "trial_id": "phase3-sol-low-proof", "run_id": "phase3-sol-low-proof-2026-07-20T21-28-41-523Z", "candidate_id": "opencode-luna-low",
+    "task_contract_hash": "b4f3c40d87a9e6e3a621385fb9d17e6079189bbc7e45ce33db65a8e4d8c9edf1",
+    "configuration_hash": "702390d3eedc85328850c8f0f81e5d107ea620b9432aec65cdc3fc479dbe476d"
+  },
+  "execution": {
+    "wall_clock_ms": { "value": 49651, "availability": "available", "source": "arena" },
+    "validation_wall_clock_ms": { "value": 1416, "availability": "available", "source": "arena" },
+    "total_pipeline_ms": { "value": 51637, "availability": "available", "source": "arena" },
+    "tool_call_count": { "value": 16, "availability": "available", "source": "opencode-jsonl" },
+    "command_count": { "value": 16, "availability": "available", "source": "opencode-jsonl" },
+    "retry_count": { "value": 0, "availability": "available", "source": "arena" },
+    "human_intervention_count": { "value": 0, "availability": "available", "source": "arena" }
+  },
+  "usage": {
+    "input_tokens": { "value": 1295, "availability": "available", "source": "opencode-jsonl" },
+    "cached_input_tokens": { "value": null, "availability": "unavailable", "source": "opencode-jsonl" },
+    "uncached_input_tokens": { "value": null, "availability": "unavailable", "source": "unavailable" },
+    "output_tokens": { "value": 61, "availability": "available", "source": "opencode-jsonl" },
+    "provider_reported_cost": { "value": null, "availability": "unavailable", "source": "opencode-jsonl" },
+    "provider_reported_currency": { "value": null, "availability": "unavailable", "source": "unavailable" },
+    "estimated_cost": { "value": null, "availability": "unavailable", "source": "unavailable" },
+    "estimated_cost_currency": { "value": null, "availability": "unavailable", "source": "unavailable" },
+    "subscription_consumption": { "value": null, "availability": "unavailable", "source": "unavailable" },
+    "quota_percent_before": { "value": null, "availability": "unavailable", "source": "unavailable" },
+    "quota_percent_after": { "value": null, "availability": "unavailable", "source": "unavailable" }
+  },
+  "intervention": {
+    "permission_denials": { "value": 0, "availability": "available", "source": "opencode-jsonl" },
+    "user_questions": { "value": 0, "availability": "available", "source": "opencode-jsonl" },
+    "manual_prompt_corrections": { "value": 0, "availability": "available", "source": "arena" },
+    "manual_file_edits": { "value": 0, "availability": "available", "source": "arena" },
+    "aborts": { "value": 0, "availability": "available", "source": "arena" },
+    "transport_retries": { "value": 0, "availability": "available", "source": "arena" }
+  },
+  "output": {
+    "files_changed": { "value": 1, "availability": "available", "source": "arena" },
+    "lines_added": { "value": 2, "availability": "available", "source": "arena" },
+    "lines_deleted": { "value": 1, "availability": "available", "source": "arena" },
+    "validation_pass_count": { "value": 2, "availability": "available", "source": "arena" },
+    "validation_fail_count": { "value": 0, "availability": "available", "source": "arena" },
+    "hard_gate_status": { "value": "passed", "availability": "available", "source": "arena" }
+  },
+  "hard_gates": [
+    { "id": "required_validation_completed", "status": "passed", "reason": "all configured commands completed" },
+    { "id": "required_validation_passed", "status": "passed", "reason": "all configured commands passed" },
+    { "id": "allowed_path_policy", "status": "passed", "reason": "candidate changes are within allowed paths" },
+    { "id": "dependency_policy", "status": "passed", "reason": "dependency policy satisfied" },
+    { "id": "worktree_recoverable", "status": "passed", "reason": "Git worktree and baseline remain readable" },
+    { "id": "nonempty_candidate_result", "status": "passed", "reason": "candidate produced a pre-validation change" },
+    { "id": "process_timeout", "status": "passed", "reason": "candidate process did not time out" },
+    { "id": "required_evidence_complete", "status": "passed", "reason": "required evidence inventory is complete" },
+    { "id": "intervention_policy", "status": "passed", "reason": "no prohibited intervention was observed" },
+    { "id": "acceptance_validator", "status": "passed", "reason": "acceptance validator passed" }
+  ]
+}

@@ -5,18 +5,20 @@ import { test } from "node:test";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-test("CLI exposes the Phase 3 help path while retaining Phase 1 commands", () => {
+test("CLI exposes the Phase 4 report paths while retaining earlier commands", () => {
   const cli = join(__dirname, "..", "src", "index.js");
   const output = execFileSync(process.execPath, [cli, "--help"], {
     encoding: "utf8"
   });
 
   assert.match(output, /AgentWorkbench Arena/);
-  assert.match(output, /Phase 3 deterministic adjudication/);
+  assert.match(output, /Phase 4 static product report/);
   assert.match(output, /arena run/);
   assert.match(output, /arena diagnose/);
   assert.match(output, /arena diagnostic/);
   assert.match(output, /arena adjudicate/);
+  assert.match(output, /arena report/);
+  assert.match(output, /arena demo/);
   assert.doesNotMatch(output, /--resume/);
 });
 

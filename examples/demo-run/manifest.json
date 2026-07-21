@@ -1,0 +1,22 @@
+{
+  "schema_version": "2.0",
+  "run_id": "phase3-sol-low-proof-2026-07-20T21-28-41-523Z",
+  "trial_id": "phase3-sol-low-proof",
+  "comparison_mode": "practical-configuration-comparison",
+  "run_status": "completed",
+  "started_at": "2026-07-20T21:28:41.499Z",
+  "completed_at": "2026-07-20T21:30:08.755Z",
+  "total_pipeline_ms": 87256,
+  "arena_git_commit": "3579561bdd201a57c269dc441865bcb224f56df5",
+  "baseline_commit": "1c1f88918d7561c892eb19abbbb8223c9690d6ab",
+  "task_contract_hash": "b4f3c40d87a9e6e3a621385fb9d17e6079189bbc7e45ce33db65a8e4d8c9edf1",
+  "task_contract_artifact": "task-contract.json",
+  "normalized_trial_snapshot_hash": "4e758542a155285320f26af3013f5f646972ba8e929ee89b9853a2bc484e04b2",
+  "candidate_count": 2,
+  "candidates": [
+    { "candidate_id": "codex-luna-low", "configuration_hash": "75a14fbc7ee0240b50aeefb22588746db26282138f711d0aa1eb09f7cb856db4", "artifact_directory": "candidates/codex-luna-low", "completion_status": "authentication", "hard_gate_status": "passed", "evidence_completeness": "candidates/codex-luna-low/telemetry.json", "deterministic_packet_ready": true },
+    { "candidate_id": "opencode-luna-low", "configuration_hash": "702390d3eedc85328850c8f0f81e5d107ea620b9432aec65cdc3fc479dbe476d", "artifact_directory": "candidates/opencode-luna-low", "completion_status": "completed", "hard_gate_status": "passed", "evidence_completeness": "candidates/opencode-luna-low/telemetry.json", "deterministic_packet_ready": true }
+  ],
+  "manifest_finalization_status": "complete",
+  "phase_3_readiness": "ready_for_audit"
+}

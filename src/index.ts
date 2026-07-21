@@ -1,9 +1,11 @@
 import { CandidateAdapter, CodexExecAdapter, OpenCodeRunAdapter } from "./adapters";
 import { adjudicationDryRun, adjudicateRun, CodexJudgeAdapter, defaultJudgeConfig } from "./adjudication";
 import { runDiagnostic, runTrial } from "./runner";
+import { generateReport } from "./report";
 import { loadTrial } from "./trial";
+import { resolve } from "node:path";
 
-const usage = `AgentWorkbench Arena (Phase 3 deterministic adjudication)
+const usage = `AgentWorkbench Arena (Phase 4 static product report)
 
 Usage:
   arena --help
@@ -12,8 +14,10 @@ Usage:
   arena diagnose <trial.yml> <candidate-id>
   arena diagnostic <trial.yml> <candidate-id>
   arena adjudicate <run-directory> [--dry-run] [--reasoning low|high]
+  arena report <run-directory>
+  arena demo
 
-Runs native candidates sequentially in isolated Git worktrees and preserves raw evidence.
+Reports consume completed artifacts only and never invoke candidate or judge adapters.
 `;
 
 export async function main(args: string[] = process.argv.slice(2)): Promise<number> {
@@ -33,6 +37,20 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<numb
     const config = { ...defaultJudgeConfig, reasoning_effort: reasoningIndex >= 0 ? tail[reasoningIndex + 1] as "low" | "high" : defaultJudgeConfig.reasoning_effort };
     const result = dryRun ? await adjudicationDryRun(args[1], config) : await adjudicateRun(args[1], new CodexJudgeAdapter(), config);
     console.log(JSON.stringify(result, null, 2)); return 0;
+  }
+
+  if (args[0] === "report") {
+    if (!args[1] || args[2]) throw new Error("usage: arena report <run-directory>");
+    const result = await generateReport(args[1]);
+    console.log(JSON.stringify({ run_directory: result.directory, report: result.report, recommendation: result.recommendation }, null, 2));
+    return 0;
+  }
+
+  if (args[0] === "demo") {
+    if (args[1]) throw new Error("usage: arena demo");
+    const directory = resolve(__dirname, "..", "..", "examples", "demo-run"), result = await generateReport(directory);
+    console.log(JSON.stringify({ report_path: "examples/demo-run/report.html", recommendation_path: result.recommendation }, null, 2));
+    return 0;
   }
 
   if ((args[0] === "doctor" || args[0] === "run" || args[0] === "diagnose" || args[0] === "diagnostic") && args[1]) {

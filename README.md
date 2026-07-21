@@ -15,6 +15,8 @@ npm test
 npm start -- doctor examples/bounded-fix/trial.yml
 npm start -- diagnose examples/bounded-fix/trial.yml codex-luna-low
 npm start -- run examples/bounded-fix/trial.yml
+npm start -- report <completed-run-directory>
+npm run demo
 ```
 
 The project uses TypeScript, Node.js, native Git/process capabilities, Node’s built-in test runner, and one YAML parser. It has no web framework, database, dashboard, or plugin framework.
@@ -52,11 +54,19 @@ The ten hard gates are explicit in each `telemetry.json`; an unavailable gate ca
 
 `arena adjudicate <run-directory> --dry-run` validates a finalized packet, constructs no candidate worktrees, uses no model quota, and atomically refreshes the inspectable `<run-directory>/phase3-preview/` cache. That cache contains only `masked-judge-input.json`, `judge-output-schema.json`, and `dry-run.json`; it creates neither an identity map nor adjudication/evaluation artifacts. A real adjudication uses one fresh OS-temporary staging directory outside the run tree, read-only ephemeral Codex execution, and `approval_policy="never"`; the staging directory is deleted after the original and optional single repair call. It defaults to `gpt-5.6-sol` at Low reasoning. `--reasoning high` is reserved for an explicit human final-stabilization run; efforts above High are rejected. The judge sees only labels and a bounded allowlisted packet: real identities, provenance, configuration hashes, machine paths, and unsafe validation output are rejected. It writes masked input, execution/repair evidence, and `evaluation.json`, never a Phase 4 report or `recommendation.yml`.
 
+## Phase 4 static report
+
+`arena report <run-directory>` validates a completed Phase 2/3 artifact set and atomically regenerates only `report.html` and `recommendation.yml`. Reporting is presentation-only: `evaluation.json` controls outcome, eligibility, and order; Phase 2 artifacts control deterministic facts; and accepted Phase 3 artifacts control semantic findings. The command invokes no candidate or judge adapter.
+
+The HTML report is self-contained with inline CSS and portable evidence links. The versioned YAML recommendation is non-operative (`routing_applied: false`) and does not modify AgentWorkbench routing. Unknown metrics remain explicit as `Not reported by harness`, and candidate execution, independent validation, and full-pipeline time remain separate.
+
+`npm run demo` regenerates the sanitized bounded proof under `examples/demo-run/` without authentication or network access. The sample omits raw logs, worktrees, executable details, private transcripts, and account/session data while preserving the real Low-proof recommendation.
+
 ## Phase boundaries
 
 Phase 1 contains the fixture, YAML trial schema, Codex and OpenCode native adapters, sequential worktree runner, and raw evidence preservation. Candidate count is configuration data: the first trial has six candidates, while adding a seventh changes only the trial file.
 
-Phase 3 adds only identity-masked adjudication artifacts and `evaluation.json`. It does not add HTML reporting, `recommendation.yml`, dashboards, import fallback, plugin orchestration, controlled tool comparisons, parallel execution, additional candidate adapters, automatic routing, or AgentWorkbench v1 integration.
+Phase 3 adds identity-masked adjudication artifacts and `evaluation.json`. Phase 4 presents those finalized artifacts as static HTML and non-operative YAML. Neither phase adds dashboards, import fallback, plugin orchestration, controlled tool comparisons, parallel execution, additional candidate adapters, automatic routing, or AgentWorkbench v1 integration.
 
 See [`docs/COMPETITION-SPRINT-ROADMAP.md`](docs/COMPETITION-SPRINT-ROADMAP.md) for the authoritative roadmap, [`SCOPE.md`](SCOPE.md) for boundaries, [`DECISIONS.md`](DECISIONS.md) for locked decisions, and [`IMPLEMENTATION_STATE.md`](IMPLEMENTATION_STATE.md) for current status.
 
