@@ -13,6 +13,13 @@ const comparable = (path: string): string => {
 };
 const nested = (parent: string, child: string): boolean => { const value = relative(comparable(parent), comparable(child)); return value !== "" && !value.startsWith("..") && !isAbsolute(value); };
 
+async function rejectSymlinkAncestry(path: string): Promise<void> {
+  for (let current = resolve(path); ; current = dirname(current)) {
+    if ((await lstat(current)).isSymbolicLink()) throw new Error("Pages destination has an unsafe symlink relationship");
+    if (dirname(current) === current) return;
+  }
+}
+
 async function regularFile(path: string): Promise<void> {
   const entry = await lstat(path);
   if (!entry.isFile() || entry.isSymbolicLink()) throw new Error("Pages source contains an unsafe artifact");
@@ -26,8 +33,9 @@ export async function stagePagesSample(sourceDirectory: string, destinationDirec
   if (!sourceEntry?.isDirectory() || sourceEntry.isSymbolicLink()) throw new Error("Pages source is unsafe");
   const source = await realpath(sourceRequested), destinationRequested = resolve(destinationDirectory), destinationEntry = await lstat(destinationRequested).catch(() => null);
   if (destinationEntry) throw new Error("Pages destination must not already exist");
-  const parentRequested = dirname(destinationRequested), parent = await realpath(parentRequested).catch(() => null);
-  if (!parent || comparable(parent) !== comparable(parentRequested)) throw new Error("Pages destination has an unsafe symlink relationship");
+  const parentRequested = dirname(destinationRequested); await rejectSymlinkAncestry(parentRequested);
+  const parent = await realpath(parentRequested).catch(() => null);
+  if (!parent) throw new Error("Pages destination has an unsafe symlink relationship");
   const destination = join(parent, basename(destinationRequested));
   if (comparable(source) === comparable(destination) || nested(source, destination) || nested(destination, source)) throw new Error("Pages destination is unsafe");
   const verified = await verifyReport(source);
