@@ -4,7 +4,7 @@ AgentWorkbench Arena is a repository-specific coding-agent configuration calibra
 
 Phase 1 native feasibility is complete with a passing `LIVE_MODE` gate. Phase 2 supplies deterministic telemetry, independent canonical validation, explicit hard gates, and a portable run manifest. Phase 3 can consume only finalized Phase 2 packets for identity-masked semantic adjudication; deterministic hard gates remain authoritative.
 
-Phase 3 implementation, deterministic tests, Windows CI, and the bounded authenticated Sol Low proof are complete. Phase 4 provides deterministic static HTML/YAML reporting and an offline sanitized demo. Phase 4.5 adds the product workflow, offline preflight, structural topology, decision lenses, verification, and a Pages-ready sample path. Sol High remains reserved for final end-to-end stabilization; Phase 5 has not started.
+Phase 3 implementation, deterministic tests, Windows CI, and the bounded authenticated Sol Low proof are complete. Phase 4 provides deterministic static HTML/YAML reporting and an offline sanitized demo. Phase 4.5 adds the product workflow, offline preflight, structural topology, decision lenses, verification, and a Pages-ready sample path. PR #5 merged at `c9baa1fa22331325f5bdd17aa87c7224eca0af3f`; Sol High remains reserved for final end-to-end stabilization while Phase 5 reproducibility work proceeds.
 
 ## Start here
 
