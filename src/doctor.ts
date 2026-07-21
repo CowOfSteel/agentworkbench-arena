@@ -20,9 +20,12 @@ const nativeVariant = (candidate: Candidate): string | null => typeof candidate.
 const shape = (candidate: Candidate, hash: string): string[] => argumentShape(candidate.adapter === "codex-exec" ? codexArgs({ candidate, worktree: "doctor-worktree", artifactDirectory: "doctor-artifacts", prompt: "doctor", timeoutMs: 1 }) : openCodeArgs({ candidate, worktree: "doctor-worktree", artifactDirectory: "doctor-artifacts", prompt: "doctor", timeoutMs: 1 }), hash);
 const codexEfforts = new Set(["none", "low", "medium", "high", "xhigh", "max"]);
 
-async function openCodeFacts(provider: string, dependencies: DoctorDependencies): Promise<{ authentication: CandidateDoctorRecord["authentication"]; modelDiscovery: CandidateDoctorRecord["model_discovery"]; models: Set<string> }> {
-  const status = dependencies.commandStatus ?? commandStatus, executable = await (dependencies.openCodeCommand ?? openCodeCommand)();
-  const [auth, models] = await Promise.all([status(executable, ["auth", "list"]), status(executable, ["models", provider])]);
+async function boundedStatus(status: (command: string, args: string[]) => Promise<CommandStatus>, executable: string, args: string[]): Promise<CommandStatus> {
+  const first = await status(executable, args);
+  return !first.ok && !first.unavailable ? status(executable, args) : first;
+}
+
+function openCodeFacts(provider: string, auth: CommandStatus, models: CommandStatus): { authentication: CandidateDoctorRecord["authentication"]; modelDiscovery: CandidateDoctorRecord["model_discovery"]; models: Set<string> } {
   const providerPresent = auth.ok && normalize(auth.stdout).includes(normalize(provider));
   return { authentication: !auth.ok ? "unknown" : providerPresent ? "available" : "missing", modelDiscovery: models.ok ? "present" : "unavailable", models: new Set(models.stdout.split(/\r?\n/).map((value) => value.trim().toLowerCase()).filter(Boolean)) };
 }
@@ -30,11 +33,21 @@ async function openCodeFacts(provider: string, dependencies: DoctorDependencies)
 export async function doctorTrial(trial: Trial, adapters: Map<string, CandidateAdapter>, dependencies: DoctorDependencies = {}): Promise<DoctorReport> {
   const trialHash = createHash("sha256").update(trial.taskContract).digest("hex");
   const adapterResults: Array<Awaited<ReturnType<CandidateAdapter["doctor"]>>> = [];
+  let sharedOpenCodeAdapterResult: Awaited<ReturnType<CandidateAdapter["doctor"]>> | undefined;
   for (const candidate of trial.candidates) {
     const adapter = adapters.get(candidate.adapter); if (!adapter) throw new Error(`no adapter registered for ${candidate.adapter}`);
-    adapterResults.push(await adapter.doctor(candidate));
+    if (candidate.adapter === "opencode-run") {
+      sharedOpenCodeAdapterResult ??= await adapter.doctor(candidate);
+      adapterResults.push(sharedOpenCodeAdapterResult);
+    } else adapterResults.push(await adapter.doctor(candidate));
   }
-  const openCodeCache = new Map<string, Promise<Awaited<ReturnType<typeof openCodeFacts>>>>();
+  const providers = [...new Set(trial.candidates.filter((candidate) => candidate.adapter === "opencode-run" && candidate.provider && !unresolvedPlaceholders(candidate.provider).length).map((candidate) => candidate.provider!))].sort((left, right) => left.localeCompare(right));
+  const openCodeCache = new Map<string, ReturnType<typeof openCodeFacts>>();
+  if (providers.length) {
+    const status = dependencies.commandStatus ?? commandStatus, executable = await (dependencies.openCodeCommand ?? openCodeCommand)();
+    const auth = await boundedStatus(status, executable, ["auth", "list"]);
+    for (const provider of providers) openCodeCache.set(provider.toLowerCase(), openCodeFacts(provider, auth, await boundedStatus(status, executable, ["models", provider])));
+  }
   const candidates: CandidateDoctorRecord[] = [];
   for (const [index, candidate] of trial.candidates.entries()) {
     const adapter = adapterResults[index];
@@ -49,8 +62,7 @@ export async function doctorTrial(trial: Trial, adapters: Map<string, CandidateA
     if (candidate.adapter === "opencode-run") {
       if (!candidate.provider) failure ??= "provider_missing";
       else if (!unresolvedPlaceholders(candidate.provider).length) {
-        const key = candidate.provider.toLowerCase(), facts = openCodeCache.get(key) ?? openCodeFacts(candidate.provider, dependencies); openCodeCache.set(key, facts);
-        const discovered = await facts;
+        const discovered = openCodeCache.get(candidate.provider.toLowerCase())!;
         authentication = discovered.authentication; modelDiscovery = discovered.modelDiscovery;
         if (discovered.modelDiscovery === "present" && !discovered.models.has(`${candidate.provider}/${candidate.model}`.toLowerCase())) failure ??= "model_not_discovered";
         if (discovered.modelDiscovery === "unavailable") failure ??= "model_discovery_unavailable";

@@ -45,6 +45,8 @@ git push origin phase5-concurrency-scheduler-baseline
 Copy-Item examples/concurrency-scheduler-phase5.yml phase5.yml
 # Replace REPLACE_REPOSITORY, REPLACE_CONCURRENCY_SCHEDULER_BASELINE with $Baseline,
 # and every REPLACE_*_VARIANT after credential-safe local discovery.
+# Add diagnostic_timeout_ms: 180000. This is bounded diagnostic-only time and
+# does not change the timeout used by the later six-candidate run.
 npm start -- preview phase5.yml
 npm start -- doctor phase5.yml
 
@@ -72,4 +74,6 @@ Finally run the Pages sample scan/staging path, enable **Settings → Pages → 
 - The source scheduler baseline intentionally fails canonical acceptance. A successful candidate worktree must pass it without modifying `fixtures/concurrency-scheduler/acceptance/`.
 - Before tagging, run `npm run scheduler:baseline-contract`; it is the bounded verifier for the intentional behavioral baseline failure, not a generic nonzero-exit check.
 - Route doctoring does not invoke models. A passed doctor is readiness evidence, not a live-provider completion proof.
+- Diagnostics default to `min(timeout_ms, 180000)` when `diagnostic_timeout_ms` is absent. A timeout remains a failure even after the exact marker is written.
+- The canonical Phase 5 probe has no terminal newline. Arena supplies its Base64 payload, byte count, SHA-256, and an exact Node `writeFileSync` method to every harness, then compares the resulting UTF-8 bytes exactly. Sanitized mismatch details distinguish missing or added/removed terminal line endings without accepting or normalizing them.
 - Sol High is human-only stabilization. It remains separate from deterministic hard-gate authority.
