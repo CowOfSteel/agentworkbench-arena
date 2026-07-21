@@ -88,6 +88,46 @@ test("route-aware doctor reports all candidates, deduplicates routes, and never 
   assert.ok(unavailable.candidates.some((candidate) => candidate.failure_classification === "model_discovery_unavailable"));
 });
 
+test("doctor uses one OpenCode snapshot and bounded discovery retries", async () => {
+  const raw = validateTrial(parse(committedFlagship()));
+  const trial = { ...raw, candidates: raw.candidates.map((candidate) => candidate.adapter === "opencode-run" ? { ...candidate, adapterOptions: { native_variant: "max" } } : candidate) };
+  let openCodeDoctorCalls = 0, authCalls = 0;
+  const modelCalls = new Map<string, number>();
+  const adapters: any = new Map([
+    ["codex-exec", { doctor: async () => ({ adapter: "codex", ok: true, executable_status: "available", authentication: { existing_cli_state: "usable", optional_access_token: "absent" } }) }],
+    ["opencode-run", { doctor: async () => { openCodeDoctorCalls++; return { adapter: "opencode", ok: true, executable_status: "available", authentication: { existing_cli_state: "usable", optional_access_token: "absent" }, configuration_layering: { status: "composed", reason: "fixture" } }; } }]
+  ]);
+  const report = await doctorTrial(trial, adapters, {
+    openCodeCommand: async () => "fake-opencode",
+    commandStatus: async (_command, args) => {
+      if (args[0] === "auth") {
+        authCalls++;
+        return authCalls === 1 ? { ok: false, stdout: "", error: "transient", unavailable: false } : { ok: true, stdout: "OpenAI\nOpenCode Go\nDeepSeek", unavailable: false };
+      }
+      const provider = args[1], calls = (modelCalls.get(provider) ?? 0) + 1;
+      modelCalls.set(provider, calls);
+      if (provider === "openai" && calls === 1) return { ok: false, stdout: "", error: "transient", unavailable: false };
+      return { ok: true, stdout: provider === "openai" ? "openai/gpt-5.6-terra" : `${provider}/deepseek-v4-flash`, unavailable: false };
+    }
+  });
+  assert.equal(report.readiness, "ready");
+  assert.equal(openCodeDoctorCalls, 1);
+  assert.equal(authCalls, 2);
+  assert.deepEqual(Object.fromEntries(modelCalls), { deepseek: 1, "opencode-go": 1, openai: 2 });
+  assert.ok(report.candidates.filter((candidate) => candidate.adapter === "opencode-run").every((candidate) => candidate.authentication === "available" && candidate.model_discovery === "present"));
+
+  let stableAuthCalls = 0;
+  const missing = await doctorTrial(trial, adapters, {
+    openCodeCommand: async () => "fake-opencode",
+    commandStatus: async (_command, args) => {
+      if (args[0] === "auth") { stableAuthCalls++; return { ok: true, stdout: "OpenAI\nDeepSeek", unavailable: false }; }
+      return { ok: true, stdout: args[1] === "openai" ? "openai/gpt-5.6-terra" : `${args[1]}/deepseek-v4-flash`, unavailable: false };
+    }
+  });
+  assert.equal(stableAuthCalls, 1);
+  assert.equal(missing.candidates.find((candidate) => candidate.provider === "opencode-go")?.failure_classification, "authentication_missing");
+});
+
 test("doctor checks candidate-specific executable overrides instead of adapter-only cache entries", async () => {
   const trial = validateTrial({ id: "doctor-overrides", repository: "repo", baseline_ref: "base", task_contract: "task", allowed_paths: ["src"], forbidden_paths: ["acceptance"], validation_commands: [[process.execPath, "-e", ""]], validation_timeout_ms: 1, dependency_policy: "no_changes", timeout_ms: 1, retry_policy: { max_launch_transport_retries: 1 }, manual_intervention: "forbidden", provenance: {}, candidates: [
     { id: "available", adapter: "codex-exec", harness: "codex", model: "gpt", adapter_options: { codex_executable: "available.cmd" } },
