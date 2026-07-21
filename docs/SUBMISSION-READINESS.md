@@ -11,7 +11,7 @@
 | Final flagship candidate run | READY | The human-controlled six-configuration run completed; three candidates passed deterministic hard gates. |
 | Final Sol High adjudication | READY | The accepted High verdict recommended Terra High through Codex with high confidence. |
 | Repository access | READY | The repository is public at `https://github.com/CowOfSteel/agentworkbench-arena`. |
-| GitHub Pages | PENDING_HUMAN | GitHub Actions Pages is configured, but the public URL is not yet verified live. |
+| GitHub Pages | READY | The public sample is live at `https://cowofsteel.github.io/agentworkbench-arena/`. |
 | Submission video | PENDING_HUMAN | Record and upload after the final report is available. |
 | Devpost | PENDING_HUMAN | Complete and submit the form after access, report, and video are ready. |
 
