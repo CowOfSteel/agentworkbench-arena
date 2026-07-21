@@ -1,0 +1,17 @@
+{
+  "trial_id": "phase3-sol-low-proof",
+  "candidate_id": "opencode-luna-low",
+  "task_contract_hash": "b4f3c40d87a9e6e3a621385fb9d17e6079189bbc7e45ce33db65a8e4d8c9edf1",
+  "baseline_commit": "1c1f88918d7561c892eb19abbbb8223c9690d6ab",
+  "adapter": "opencode-run",
+  "harness": "opencode",
+  "provider": "openai",
+  "model": "gpt-5.6-luna",
+  "attention": "low",
+  "agent": "build",
+  "profile": null,
+  "permission_policy": { "share": "disabled", "permission": { "*": "allow", "external_directory": "deny", "question": "deny", "webfetch": "deny", "websearch": "deny" } },
+  "adapter_execution": { "executable": null, "configuration_isolation": null, "ambient": null, "arguments": [], "sample_omission": "machine-specific execution details removed" },
+  "trial_provenance": { "purpose": "phase3-sol-low-proof", "future_candidate_enabled_tools": [] },
+  "candidate_tool_provenance": { "explicitly_enabled": [] }
+}

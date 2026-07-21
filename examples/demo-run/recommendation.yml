@@ -1,0 +1,99 @@
+schema_version: "1.0"
+source:
+  run_id: phase3-sol-low-proof-2026-07-20T21-28-41-523Z
+  trial_id: phase3-sol-low-proof
+  evaluation_schema_version: "3.0"
+  comparison_mode: practical-configuration-comparison
+outcome: RECOMMENDATION
+recommended_candidate: codex-luna-low
+tied_candidates: []
+confidence: high
+routing_applied: false
+ranking:
+  - candidate_id: codex-luna-low
+    opaque_label: A
+    eligibility: eligible
+    hard_gate_status: passed
+    source_completion_status: authentication
+    semantic_rank: 1
+    semantic_tier: strong
+    semantic_criteria:
+      acceptance_coverage: strong
+      maintainability: strong
+      architecture_fit: strong
+      regression_risk: strong
+      unnecessary_complexity: strong
+      evidence_quality: strong
+    exclusion_reasons: []
+    reasons:
+      - Passes every hard gate and both required validations. It directly implements final-only cent rounding in the smallest possible one-line change.
+      - Preserves the public signature.
+      - Sums quantity times fractional unit price before rounding.
+      - Rounds only the final total to cents.
+      - Changes one permitted file with a minimal one-line replacement.
+      - Typecheck and tests passed.
+    tradeoffs:
+      - The single expression is slightly denser than B's equivalent implementation.
+    evidence_references:
+      - evaluation.json
+      - adjudication.json
+      - candidates/codex-luna-low/provenance.json
+      - candidates/codex-luna-low/telemetry.json
+      - candidates/codex-luna-low/validation.json
+      - candidates/codex-luna-low/candidate.diff
+  - candidate_id: opencode-luna-low
+    opaque_label: B
+    eligibility: eligible
+    hard_gate_status: passed
+    source_completion_status: completed
+    semantic_rank: 2
+    semantic_tier: strong
+    semantic_criteria:
+      acceptance_coverage: strong
+      maintainability: strong
+      architecture_fit: strong
+      regression_risk: strong
+      unnecessary_complexity: adequate
+      evidence_quality: strong
+    exclusion_reasons: []
+    reasons:
+      - Also passes every hard gate and validation and correctly implements the contract, but introduces an unnecessary intermediate variable.
+      - Preserves the public signature.
+      - Sums quantity times fractional unit price before rounding.
+      - Rounds only the final total to cents.
+      - Uses a readable intermediate total.
+      - Typecheck and tests passed.
+    tradeoffs:
+      - The intermediate variable adds a line without changing behavior or improving required coverage.
+    evidence_references:
+      - evaluation.json
+      - adjudication.json
+      - candidates/opencode-luna-low/provenance.json
+      - candidates/opencode-luna-low/telemetry.json
+      - candidates/opencode-luna-low/validation.json
+      - candidates/opencode-luna-low/candidate.diff
+judge_execution:
+  status: completed
+  failureClassification: permission
+source_execution_limitations:
+  - "Historical source completion status for A: authentication."
+  - "Historical judge original failure classification: permission."
+evidence_references:
+  - manifest.json
+  - task-contract.json
+  - trial-snapshot.json
+  - identity-map.json
+  - evaluation.json
+  - adjudication.json
+  - judge-result.json
+  - sample-metadata.json
+noncausal_statement: Arena compares complete configurations. Observed differences cannot be attributed to any single model, harness, provider, attention level, tool, or profile.
+sample_metadata:
+  schema_version: "1.0"
+  kind: sanitized_derivative
+  evidence_completeness_scope: source_run
+  omitted_artifacts:
+    - raw events and logs
+    - worktrees and executable locations
+    - private judge transcripts and account/session material
+  retained_results: Accepted deterministic and semantic results are retained from the finalized source run.

@@ -1,0 +1,29 @@
+{
+  "schema_version": "3.0",
+  "labels": ["A", "B"],
+  "eligible_labels": ["A", "B"],
+  "verdict": {
+    "schema_version": "3.0",
+    "verdict": "RECOMMENDATION",
+    "recommended_labels": ["A"],
+    "confidence": "high",
+    "ranking": [
+      { "label": "A", "rank": 1, "tier": "strong", "rationale": "Passes every hard gate and both required validations. It directly implements final-only cent rounding in the smallest possible one-line change." },
+      { "label": "B", "rank": 2, "tier": "strong", "rationale": "Also passes every hard gate and validation and correctly implements the contract, but introduces an unnecessary intermediate variable." }
+    ],
+    "criteria_by_candidate": {
+      "A": { "acceptance_coverage": "strong", "maintainability": "strong", "architecture_fit": "strong", "regression_risk": "strong", "unnecessary_complexity": "strong", "evidence_quality": "strong" },
+      "B": { "acceptance_coverage": "strong", "maintainability": "strong", "architecture_fit": "strong", "regression_risk": "strong", "unnecessary_complexity": "adequate", "evidence_quality": "strong" }
+    },
+    "strengths_by_candidate": {
+      "A": ["Preserves the public signature.", "Sums quantity times fractional unit price before rounding.", "Rounds only the final total to cents.", "Changes one permitted file with a minimal one-line replacement.", "Typecheck and tests passed."],
+      "B": ["Preserves the public signature.", "Sums quantity times fractional unit price before rounding.", "Rounds only the final total to cents.", "Uses a readable intermediate total.", "Typecheck and tests passed."]
+    },
+    "risks_by_candidate": {
+      "A": ["The single expression is slightly denser than B's equivalent implementation."],
+      "B": ["The intermediate variable adds a line without changing behavior or improving required coverage."]
+    },
+    "limitations": ["Validation output was truncated.", "The serialized evidence packet was partial, though required evidence was marked complete for both candidates."],
+    "summary": "Both candidates are correct and eligible. A is preferred because it provides the same validated behavior with the smaller, simpler diff."
+  }
+}

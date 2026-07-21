@@ -56,9 +56,9 @@ export function openCodeArgs(request: CandidateRequest): string[] {
 const isTransport = (message: string) => /ECONN|ENOTFOUND|ETIMEDOUT|network|socket|transport|connection reset/i.test(message);
 export const classifyFailure = (message: string, timedOut: boolean, exitCode: number | null = 0): FailureKind | undefined => {
   if (timedOut) return "timeout";
-  if (/\b(?:auth(?:entication|orization)?|login|credentials?|unauthorized|forbidden)\b/i.test(message)) return "authentication";
+  if (/\b(?:authentication (?:failed|required)|login required|(?:missing|invalid|expired|rejected|required) credentials?|unauthorized|authorization required|access forbidden)\b/i.test(message)) return "authentication";
   if (/unsupported|unknown model|invalid model|variant|invalid[_ ]json[_ ]schema|invalid schema/i.test(message)) return "unsupported_configuration";
-  if (/permission|approval|denied|sandbox/i.test(message)) return "permission";
+  if (/\b(?:permission denied|approval (?:denied|required)|operation not permitted|permission rejected|request rejected|sandbox violation|write blocked)\b/i.test(message)) return "permission";
   if (isTransport(message)) return "transport";
   return exitCode !== 0 ? "candidate_task" : undefined;
 };

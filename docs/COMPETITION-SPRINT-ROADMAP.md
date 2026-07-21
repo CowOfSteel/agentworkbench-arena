@@ -1169,7 +1169,7 @@ The system can produce:
 
 ### Current repository status
 
-Phase 3 implementation and deterministic tests are complete, and the finalized Phase 2 dry-run is verified without a Sol invocation. One authenticated Sol Low proof remains as the final manual Phase 3 gate; Sol High is reserved for later end-to-end stabilization. Phase 4 has not started.
+Phase 3 implementation, deterministic tests, Windows CI, and the bounded authenticated Sol Low proof are complete. The proof produced a validated two-candidate `RECOMMENDATION`; Sol High remains reserved for later end-to-end stabilization. Phase 4 has not started.
 
 ---
 
@@ -1200,6 +1200,10 @@ A nontechnical viewer can understand within 30 seconds:
 * why;
 * what evidence supports the recommendation;
 * which metrics were unavailable.
+
+### Current implementation status
+
+Phase 4 uses finalized Phase 2/3 artifacts as read-only inputs. The static report and non-operative recommendation preserve controller ordering, hard-gate authority, all accepted ordinal criteria, and availability-aware telemetry; the committed demo is a versioned sanitized derivative of the successful authenticated Sol Low bounded proof. Phase 5 clean-clone stabilization remains separate.
 
 ---
 
