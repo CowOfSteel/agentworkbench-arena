@@ -91,7 +91,7 @@ test("decision lenses and telemetry render authoritative values without request-
 
 test("judge-first documentation and readable templates preserve safe workflows", async () => {
   const root = resolve(__dirname, "..", ".."), readme = await readFile(resolve(root, "README.md"), "utf8"), quickstart = await readFile(resolve(root, "docs", "QUICKSTART-LIVE.md"), "utf8");
-  assert.ok(readme.indexOf("Try it without credentials") < readme.indexOf("Phase 1")); assert.match(readme, /docs\/QUICKSTART-LIVE\.md/); assert.match(readme, /enablement step and is not claimed live/);
+  assert.ok(readme.indexOf("Zero-credential judge path") < readme.indexOf("Architecture and trust")); assert.match(readme, /docs\/QUICKSTART-LIVE\.md/); assert.match(readme, /Pages is not enabled yet/);
   assert.match(quickstart, /codex login/); assert.match(quickstart, /opencode models openai/); assert.match(quickstart, /git config --global core\.longpaths true/); assert.match(quickstart, /subst R:/); assert.match(quickstart, /primarily \*\*per candidate run\*\*/); assert.match(quickstart, /not provider API request latency/); assert.doesNotMatch(quickstart, /access[_ -]?token\s*[:=]|api[_ -]?key\s*[:=]|C:\\Users\\/i);
   for (const kind of ["attention-sweep", "harness-comparison", "practical-comparison"] as const) {
     const template = trialTemplate(kind), trial = validateTrial(parseYaml(template));
