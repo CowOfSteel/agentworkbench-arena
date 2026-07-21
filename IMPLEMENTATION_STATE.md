@@ -6,6 +6,10 @@ Phase 4 static reporting and its bounded audit repair are complete. PR #4 merged
 
 Phase 4.5 product experience is complete and merged to `main` through PR #5 at `c9baa1fa22331325f5bdd17aa87c7224eca0af3f`. Its canonical calibration workflow, templates, preview, topology, presentation lenses, coverage, verification, and Pages staging remain bounded around the completed Phase 1–4 pipeline and add no new evidence or semantic authority. The final repair records identity-safe judge-validation diagnostics, uses a bounded candidate-count-aware response ceiling, preserves one structural repair, and prepares (without executing) the separate concurrency-scheduler Phase 5 fixture/trial. Explicit display/native/provider-route provenance remains backward-compatible, and configured canonical acceptance commands preserve the historical fractional-price path when omitted. The final human six-candidate Low adjudication proof passed with recommendation `codex-luna-high`; report generation passed and `arena verify` returned `VERIFIED`. Windows CI run `29805328842` passed. Phase 5 deterministic reproducibility implementation is complete and ready for audit; no native flagship run or Sol invocation occurred.
 
+Phase 5 reproducibility PR #6 merged at `197ebd3102af11d2b57d2e8a85ecc12f9b2b0b6d`. Diagnostic stabilization PR #7 merged at `19d4726f40ec971cc3105912ee79fe900496338d`; its final shared exact-byte diagnostic contract passed once for all six flagship configurations, and Windows CI run `29859064996` passed. Those bounded route proofs establish native-run readiness, but the flagship comparison and Sol High adjudication remain unexecuted.
+
+Phase 5.5 is a presentation-only supplement. It adds a judge-first report summary, formatted decision-lens values, human telemetry labels, simplified candidate cards, a five-minute live guide, and a judge-first README without changing evidence schemas, eligibility, controller ordering, recommendation YAML authority, or routing behavior. Normalized telemetry remains primarily per candidate run and is not presented as provider-request latency.
+
 Final Phase 4.5 current-head verification supersedes earlier implementation-run references: Windows CI run `29805328842` passed for this documented closeout state.
 
 Phase 3 masked semantic adjudication is complete. Its deterministic suite and Windows CI passed, and the bounded authenticated Sol Low retry-2 proof produced a validated `RECOMMENDATION`. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 2 deterministic evidence remains authoritative. Sol High remains reserved for later stabilization.
@@ -106,10 +110,14 @@ Phase 3 closeout implementation reference:
 
 ## Next bounded step
 
-PR #4 and PR #5 are merged. The scheduler flagship fixture/trial is prepared but unexecuted; its repository and native-variant `REPLACE_*` values remain human Phase 5 work. The final immutable fixture baseline is `8dda0e4068a8b7fb27793cfbab6947076ec24e7f`, but the human must create and push its tag. OpenCode variants remain declared-unverified until bounded diagnostics confirm them. Sol High has not been invoked. Phase 5 implementation is ready for audit, not for the native flagship run.
+PR #7 is merged and all six exact candidate configurations passed the final bounded diagnostic contract. The scheduler flagship comparison remains unexecuted, Sol High has not been invoked, and the public Pages deployment remains a human enablement step. The next product action after this bounded presentation audit is the human-controlled stage-specific flagship sequence; Phase 6 has not begun.
 
 PHASE_4_5_GATE: PASS
 PHASE_5_READY: READY_FOR_AUDIT
 PHASE_5_IMPLEMENTATION_GATE: READY_FOR_AUDIT
-PHASE_5_NATIVE_RUN_READY: NO
+PHASE_5_NATIVE_RUN_READY: YES
+PHASE_5_5_PRESENTATION_GATE: READY_FOR_AUDIT
+RAW_TELEMETRY_AUTHORITY_PRESERVED: YES
+PER_REQUEST_OVERCLAIM_PRESENT: NO
+FLAGSHIP_RUN_PERFORMED: NO
 PHASE_6_READY: NO

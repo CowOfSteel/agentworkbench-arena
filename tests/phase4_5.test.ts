@@ -10,6 +10,7 @@ import { main } from "../src/index";
 import { stagePagesSample } from "../src/pages";
 import { previewTrial, renderTrialPreview } from "../src/preview";
 import { buildReportModel, generateReport, loadCompletedRun, renderRecommendationYaml, verifyReport } from "../src/report";
+import { buildDiagnosticTaskContract } from "../src/runner";
 import { trialTemplate, writeTrialTemplate } from "../src/templates";
 import { analyzeTopology, topologyFromTrial } from "../src/topology";
 import { loadTrial, validateTrial } from "../src/trial";
@@ -25,6 +26,7 @@ test("all safe templates validate, do not overwrite, and carry editable placehol
     for (const kind of ["attention-sweep", "harness-comparison", "practical-comparison"] as const) {
       const text = trialTemplate(kind), trial = validateTrial(parse(text));
       assert.ok(trial.candidates.length >= 2); assert.match(text, /REPLACE_REPOSITORY/); assert.match(text, /REPLACE_BASELINE/); assert.doesNotMatch(text, /[A-Za-z]:[\\/]|file:\/\/|(?:access[_ -]?token|api[_ -]?key|password|secret)\s*[:=]/i);
+      assert.deepEqual(trial.diagnosticProbe, { path: "src/arena-diagnostic-probe.txt", content: "agentworkbench-arena-diagnostic\n" }); assert.match(buildDiagnosticTaskContract(trial.diagnosticProbe!), /Create only src\/arena-diagnostic-probe\.txt/);
       const output = join(directory, `${kind}.yml`), created = await writeTrialTemplate(kind, output);
       assert.equal(created.path, resolve(output)); await assert.rejects(() => writeTrialTemplate(kind, output), /EEXIST/);
     }

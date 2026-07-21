@@ -1,18 +1,47 @@
 # AgentWorkbench Arena
 
-AgentWorkbench Arena is a repository-specific coding-agent configuration calibration tool. It compares complete candidate configurations against the same user-owned repository contract while preserving deterministic evidence and keeping semantic judgment subordinate to hard gates.
+Public coding-agent leaderboards cannot tell you which complete configuration works best on your repository.
 
-Phase 1 native feasibility is complete with a passing `LIVE_MODE` gate. Phase 2 supplies deterministic telemetry, independent canonical validation, explicit hard gates, and a portable run manifest. Phase 3 can consume only finalized Phase 2 packets for identity-masked semantic adjudication; deterministic hard gates remain authoritative.
+AgentWorkbench Arena runs the same task through multiple native Codex and OpenCode configurations, validates each result, compares operational telemetry, uses identity-masked GPT-5.6 adjudication, and produces a practical, non-operative recommendation.
 
-Phase 3 implementation, deterministic tests, Windows CI, and the bounded authenticated Sol Low proof are complete. Phase 4 provides deterministic static HTML/YAML reporting and an offline sanitized demo. Phase 4.5 adds the product workflow, offline preflight, structural topology, decision lenses, verification, and a Pages-ready sample path. PR #5 merged at `c9baa1fa22331325f5bdd17aa87c7224eca0af3f`; Phase 5 reproducibility implementation is ready for audit, while Sol High remains reserved for final human-controlled stabilization.
+**Sample report:** [open the committed sanitized report](examples/demo-run/report.html). The expected Pages URL is <https://cowofsteel.github.io/agentworkbench-arena/>; publication through GitHub Pages is an enablement step and is not claimed live here.
 
-## Start here
+## Try it without credentials
 
-1. View the public sample after GitHub Pages is enabled: <https://cowofsteel.github.io/agentworkbench-arena/>.
-2. Regenerate that same sanitized sample offline: `npm run demo`.
-3. Create a safe starting trial: `npm start -- init attention-sweep attention-sweep.yml`.
-4. Inspect it offline: `npm start -- preview attention-sweep.yml`.
-5. Run the complete workflow when native prerequisites are deliberately available: `npm start -- calibrate trial.yml --reasoning low`.
+```powershell
+git clone https://github.com/CowOfSteel/agentworkbench-arena.git arena
+cd arena
+npm ci
+npm run demo
+Start-Process ".\examples\demo-run\report.html"
+```
+
+The demo is a sanitized two-candidate proof. It needs no Codex/OpenCode authentication, provider account, candidate run, or judge invocation.
+
+## What the report tells you
+
+- Which candidates passed deterministic requirements and which were excluded.
+- Which eligible implementation the masked semantic adjudication recommended or tied.
+- Which eligible candidate executed fastest, changed the least code, or needed fewer retries and interventions.
+- Which compatible provider-reported token or cost facts can be compared.
+- Which telemetry was unavailable, established as zero, or sourced differently.
+
+## Run Arena on your repository
+
+Follow the [five-minute live guide](docs/QUICKSTART-LIVE.md) for installation, native authentication, trial setup, preview, doctoring, bounded route diagnostics, calibration, and report review. Use the [Phase 5 runbook](docs/PHASE5-RUNBOOK.md) for expensive release-style trials.
+
+## Architecture and trust model
+
+```text
+trial.yml
+  → isolated sequential candidate worktrees
+  → deterministic evidence, validation, and hard gates
+  → identity-masked read-only semantic adjudication
+  → controller-owned evaluation.json
+  → offline static report.html + recommendation.yml
+```
+
+Raw evidence and deterministic gates remain authoritative. Semantic adjudication cannot make an ineligible candidate eligible, decision lenses cannot rerank `evaluation.json`, and reports never invoke a candidate or judge adapter.
 
 `arena calibrate` is the canonical one-command workflow. It preserves each stage’s artifacts and produces one final JSON summary. Existing commands remain available for advanced debugging.
 
@@ -77,7 +106,7 @@ The ten hard gates are explicit in each `telemetry.json`; an unavailable gate ca
 
 `arena report <run-directory>` validates a completed Phase 2/3 artifact set and atomically regenerates only `report.html` and `recommendation.yml`. Reporting is presentation-only: `evaluation.json` controls outcome, eligibility, and order; Phase 2 artifacts control deterministic facts; and accepted Phase 3 artifacts control semantic findings. The report preserves all six accepted ordinal criteria, source execution statuses as evidence limitations, full availability-aware telemetry, and horizontally scrollable comparison matrices. The command invokes no candidate or judge adapter.
 
-The HTML report is self-contained with inline CSS and portable evidence links. The versioned YAML recommendation is non-operative (`routing_applied: false`) and does not modify AgentWorkbench routing. Unknown metrics remain explicit as `Not reported by harness`, and candidate execution, independent validation, and full-pipeline time remain separate.
+The HTML report is self-contained with inline CSS and portable evidence links. The versioned YAML recommendation is non-operative (`routing_applied: false`) and does not modify AgentWorkbench routing. Unknown metrics remain explicit as `Not reported`, established zero remains `0`, and candidate execution, independent validation, and full-pipeline time remain separate. Normalized telemetry is primarily per candidate run; candidate duration includes harness/tool activity and is not provider API request latency.
 
 `npm run demo` regenerates the sanitized bounded proof under `examples/demo-run/` without authentication or network access. Its versioned `sample-metadata.json` labels it as a sanitized derivative whose completeness pertains to the source run; it omits raw logs, worktrees, executable details, private transcripts, and account/session data while preserving the real Low-proof recommendation and any historical source-execution classification as non-authoritative evidence.
 
@@ -94,6 +123,8 @@ The committed bounded two-candidate proof is also the public sample path. After 
 ## Phase 5 trial preparation (not executed)
 
 [`examples/concurrency-scheduler-phase5.yml`](examples/concurrency-scheduler-phase5.yml) is a deliberately blocked six-candidate stabilization template for the dependency-free [`fixtures/concurrency-scheduler/`](fixtures/concurrency-scheduler/) task. It uses explicit display metadata, provider route, native reasoning effort, and OpenCode native variant fields. `attention` remains legacy normalized data; new trials should prefer the explicit native fields.
+
+PR #7 merged at `19d4726f40ec971cc3105912ee79fe900496338d` after all six exact configurations passed the final shared bounded diagnostic contract. That proves route readiness only; the flagship comparison and Sol High adjudication have not been run.
 
 OpenAI GPT-5.6 native efforts are `none`, `low`, `medium`, `high`, `xhigh`, and `max`. DeepSeek V4 efforts are `high` and `max`; for the explicit DeepSeek routes Arena records `low`/`medium` → `high` and `xhigh` → `max` as documented compatibility, rather than changing a harness argument. It records requested harness variant, effective provider effort, and evidence source separately.
 

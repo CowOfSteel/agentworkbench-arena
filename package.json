@@ -10,7 +10,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node --test dist/tests/cli.test.js dist/tests/phase1.test.js dist/tests/phase2.test.js dist/tests/phase3.test.js dist/tests/phase4.test.js dist/tests/phase4_5.test.js dist/tests/phase5_preparation.test.js",
+    "test": "npm run build && node --test dist/tests/cli.test.js dist/tests/phase1.test.js dist/tests/phase2.test.js dist/tests/phase3.test.js dist/tests/phase4.test.js dist/tests/phase4_5.test.js dist/tests/phase5_preparation.test.js dist/tests/phase5_5.test.js",
     "fixture:typecheck": "tsc -p fixtures/bounded-inventory/tsconfig.json --noEmit",
     "fixture:test": "npm run build && node --test fixtures/bounded-inventory/tests/inventory.test.js",
     "scheduler:typecheck": "tsc -p fixtures/concurrency-scheduler/tsconfig.json --noEmit",
