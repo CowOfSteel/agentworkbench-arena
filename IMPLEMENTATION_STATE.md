@@ -4,7 +4,7 @@
 
 Phase 4 static reporting and its bounded audit repair are complete. PR #4 merged to `main` at `ba100ccde184e1602446534c3c60cb5cd21a62c3`; its local Phase 1–4 and fixture suites plus Windows CI run `29796809979` passed. Reporting consumes finalized artifacts without adapters, preserves controller ordering and hard-gate authority, and generates deterministic `report.html` and non-operative `recommendation.yml`.
 
-Phase 4.5 product experience is complete on `phase4-5/product-experience`. Its canonical calibration workflow, templates, preview, topology, presentation lenses, coverage, verification, and Pages staging remain bounded around the completed Phase 1–4 pipeline and add no new evidence or semantic authority. The audit repairs distinguish accepted from execution-failure inconclusives, verify reports after calibration, prevent destructive Pages staging, make templates intentionally unresolved until edited, report complete attempt bounds/topology, and serialize recommendation output as schema `1.1`. Local verification and current-head Windows CI run `29801870917` passed. `PHASE_4_5_GATE: READY_FOR_HUMAN_PROOF`; Phase 5 has not begun and `PHASE_5_READY: NO`.
+Phase 4.5 product experience is complete on `phase4-5/product-experience`. Its canonical calibration workflow, templates, preview, topology, presentation lenses, coverage, verification, and Pages staging remain bounded around the completed Phase 1–4 pipeline and add no new evidence or semantic authority. The final repair records identity-safe judge-validation diagnostics, uses a bounded candidate-count-aware response ceiling, preserves one structural repair, and prepares (without executing) the separate concurrency-scheduler Phase 5 fixture/trial. Explicit display/native/provider-route provenance remains backward-compatible, and configured canonical acceptance commands preserve the historical fractional-price path when omitted. Local verification and current-head Windows CI run `29804884544` passed. `PHASE_4_5_GATE: READY_FOR_FINAL_HUMAN_PROOF`; Phase 5 has not begun and `PHASE_5_READY: NO`.
 
 Phase 3 masked semantic adjudication is complete. Its deterministic suite and Windows CI passed, and the bounded authenticated Sol Low retry-2 proof produced a validated `RECOMMENDATION`. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 2 deterministic evidence remains authoritative. Sol High remains reserved for later stabilization.
 
@@ -68,7 +68,7 @@ Phase 3 closeout implementation reference:
 - [x] The Phase 3 code gate, Windows CI, and bounded authenticated Sol Low proof passed.
 - [x] Phase 4 report generation, recommendation output, CLI paths, and sanitized demo pass locally without native or model execution.
 - [x] Phase 4 audit-repair Windows CI run `29796809979` passed; the separate Phase 5 audit remains future work.
-- [x] Phase 4.5 product workflow, templates, preview, topology, lenses, coverage, read-only verification, Pages staging, sanitized demo, and Codex provenance documentation pass locally; the audit-repaired current head passed Windows CI run `29801870917`.
+- [x] Phase 4.5 product workflow, templates, preview, topology, lenses, coverage, read-only verification, Pages staging, sanitized demo, Codex provenance documentation, final six-candidate adjudication repair, and nonexecuted scheduler-trial preparation pass locally; the current head passed Windows CI run `29804884544`.
 - [x] `IMPORT_COMPARISON_FALLBACK` remains a documented contingency only; it is not the active mode and is not implemented.
 
 ## Commands and evidence verified
@@ -93,6 +93,7 @@ Phase 3 closeout implementation reference:
 - Phase 4 audit-repair GitHub Actions - Windows workflow run `29796809979` passed all configured checks.
 - Phase 4.5 verification - `typecheck`, `build`, 53 tests, fixture typecheck/test, offline demo, six-candidate preview, read-only demo verification, and `git diff --check` passed; Windows workflow run `29799574020` passed.
 - Phase 4.5 audit repairs - `typecheck`, `build`, 55 tests, fixture typecheck/test, offline demo, six-candidate preview, read-only demo verification, and `git diff --check` passed; current-head Windows workflow run `29801870917` passed.
+- Final Phase 4.5 repair and Phase 5 trial preparation - `typecheck`, `build`, 61 tests, bounded-inventory fixture checks, scheduler fixture typecheck/test, offline demo, both six-candidate previews, read-only demo verification, and `git diff --check` passed; current-head Windows workflow run `29804884544` passed. No native candidate, Sol, or Pages deployment ran.
 
 ## Historical evidence
 
