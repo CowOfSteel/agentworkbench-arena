@@ -16,7 +16,7 @@ R:
 Set-Location \
 ```
 
-`git status --short` must be empty. Do not type the angle brackets; substitute the repository’s absolute path. Remove the mapping later with `subst R: /D` after leaving `R:`.
+`git status --short` must be empty. Do not type the angle brackets; substitute the repository’s absolute path. Remove the mapping later with `subst R: /D` after leaving `R:`. If `R:` is already mapped to this repository, reuse the existing mapping instead of recreating it.
 
 ## 2. Verify the frozen fixture baseline
 
@@ -83,28 +83,27 @@ Inspect the preview before the live call. A valid recommendation, tie, no winner
 ```powershell
 npm start -- report $Run
 npm start -- verify $Run
-npm start -- sanitize-sample $Run examples/demo-run
-npm start -- verify examples/demo-run
-npm run demo
-npm start -- verify examples/demo-run
 ```
 
-Report generation may be rerun from the preserved evaluated run. Sanitation may be rerun from the verified run and replaces only an existing Arena-owned sanitized sample. Neither operation invokes candidates or Sol.
+Report generation may be rerun from the preserved evaluated run. Neither operation invokes candidates or Sol.
 
 ## 8. Final offline preflight and safe commit
 
 ```powershell
-npm run submission:preflight
-git status --short
 git switch -c release/flagship-sample
+npm start -- sanitize-sample $Run examples/demo-run
+npm run demo
+npm start -- verify examples/demo-run
 git add examples/demo-run
 git diff --cached --check
 git diff --cached --stat
 git commit -m "Publish sanitized flagship Arena sample"
+npm run submission:preflight
+git status --short
 git push -u origin release/flagship-sample
 ```
 
-Stage only the sanitized sample. Review the PR before merging.
+Sanitation replaces only the requested sanitized sample and does not mutate the source run. Stage only the sanitized sample, review the staged changes, commit them, then run `npm run submission:preflight` against the now-clean committed tree before pushing the release branch.
 
 ## 9. Human publication steps
 
