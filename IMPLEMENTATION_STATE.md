@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 4 static reporting is implemented and passes the complete local Phase 1–4 and fixture suites. It consumes finalized artifacts without adapters, preserves controller ordering and hard-gate authority, and generates deterministic `report.html` and non-operative `recommendation.yml`. Draft-PR Windows CI remains pending, so `PHASE_5_READY` is still `NO`.
+Phase 4 static reporting is complete and passes the complete local Phase 1–4 and fixture suites plus draft-PR Windows CI. It consumes finalized artifacts without adapters, preserves controller ordering and hard-gate authority, and generates deterministic `report.html` and non-operative `recommendation.yml`. The branch is ready for a separate Phase 5 audit; Phase 5 work has not begun.
 
 Phase 3 masked semantic adjudication is complete. Its deterministic suite and Windows CI passed, and the bounded authenticated Sol Low retry-2 proof produced a validated `RECOMMENDATION`. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 2 deterministic evidence remains authoritative. Sol High remains reserved for later stabilization.
 
@@ -64,7 +64,7 @@ Phase 3 closeout implementation reference:
 - [x] Phase 3 masked semantic-adjudication implementation and deterministic tests are complete without model-quota use. Failed or unavailable deterministic gates remain ineligible and cannot be overridden.
 - [x] The Phase 3 code gate, Windows CI, and bounded authenticated Sol Low proof passed.
 - [x] Phase 4 report generation, recommendation output, CLI paths, and sanitized demo pass locally without native or model execution.
-- [ ] Phase 4 draft-PR Windows CI and separate audit remain pending.
+- [x] Phase 4 draft-PR Windows CI passed; the separate Phase 5 audit remains future work.
 - [x] `IMPORT_COMPARISON_FALLBACK` remains a documented contingency only; it is not the active mode and is not implemented.
 
 ## Commands and evidence verified
@@ -86,6 +86,7 @@ Phase 3 closeout implementation reference:
 - Real finalized Phase 2 dry-run passed against `runs/phase3-sol-low-proof-2026-07-20T21-28-41-523Z`: `packet_valid: true`, opaque labels `A` and `B`, Low reasoning, packet size `6047` within the `32192` limit, and preview contents limited to `masked-judge-input.json`, `judge-output-schema.json`, and `dry-run.json`; no Sol invocation occurred.
 - Authenticated Sol Low proof - passed on the retry-2 copied run with a validated `RECOMMENDATION`.
 - Phase 4 local verification - `typecheck`, `build`, 45 tests, fixture typecheck/test, offline demo, and `git diff --check` passed.
+- Phase 4 GitHub Actions - Windows workflow run `29789830473` passed all configured checks.
 
 ## Historical evidence
 
@@ -94,4 +95,4 @@ Phase 3 closeout implementation reference:
 
 ## Next bounded step
 
-Push the Phase 4 implementation, open the draft PR, and require the Windows workflow to pass before declaring readiness for a separate Phase 5 audit. Sol High remains reserved for final end-to-end stabilization and has not been invoked.
+PR #4 is ready for a separate Phase 4 audit. Do not merge or begin Phase 5 until that audit is accepted. Sol High remains reserved for final end-to-end stabilization and has not been invoked.
