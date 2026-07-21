@@ -21,6 +21,7 @@ export interface CandidateResult { candidateId: string; directory: string; execu
 export interface RunResult { directory: string; candidates: CandidateResult[]; }
 export interface DiagnosticResult { directory: string; candidate: CandidateResult; passed: boolean; diagnosticPath: string; }
 export type DiagnosticFailureClassification = "passed" | "timeout_after_marker" | "timeout_before_marker" | "launch_or_transport_failure" | "nonzero_process_exit" | "execution_failure" | "marker_mismatch" | "unexpected_path_changes" | "forbidden_path_changes" | "validation_side_effects";
+export type DiagnosticMarkerMismatchDetail = "missing" | "terminal_lf_added" | "terminal_crlf_added" | "terminal_lf_removed" | "terminal_crlf_removed" | "content_mismatch";
 
 export interface DiagnosticAssessment {
   passed: boolean;
@@ -33,6 +34,13 @@ export interface DiagnosticAssessment {
   unsafeObservedPathCount: number;
   forbiddenPathChanges: string[];
   unsafeForbiddenPathCount: number;
+}
+
+export interface DiagnosticProbeComparison {
+  marker: boolean;
+  mismatchDetail: DiagnosticMarkerMismatchDetail | null;
+  expectedByteCount: number;
+  observedByteCount: number | null;
 }
 
 interface WorktreeStatus {
@@ -383,6 +391,32 @@ const safeDiagnosticPath = (value: string): string | null => {
   return /^(?:[A-Za-z]:|\/|\\)/.test(normalized) || normalized.split("/").some((part) => !part || part === "." || part === "..") ? null : normalized;
 };
 
+export function buildDiagnosticTaskContract(probe: { path: string; content: string }): string {
+  const bytes = Buffer.from(probe.content, "utf8");
+  const base64 = bytes.toString("base64");
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  return [
+    `Create only ${probe.path}.`,
+    `Write exactly ${bytes.length} UTF-8 bytes.`,
+    `Payload Base64: ${base64}`,
+    `Payload SHA-256: ${sha256}`,
+    `Use Node.js fs.writeFileSync with Buffer.from(${JSON.stringify(base64)}, "base64") so the bytes are exact.`,
+    "Do not use patch, editor, echo, or other text-writing helpers that may add or remove a terminal newline.",
+    "Do not add, trim, or normalize any bytes. Terminate immediately after the write."
+  ].join("\n");
+}
+
+export function compareDiagnosticProbeBytes(actual: Buffer | undefined, expected: Buffer): DiagnosticProbeComparison {
+  const result = (marker: boolean, mismatchDetail: DiagnosticMarkerMismatchDetail | null): DiagnosticProbeComparison => ({ marker, mismatchDetail, expectedByteCount: expected.length, observedByteCount: actual?.length ?? null });
+  if (!actual) return result(false, "missing");
+  if (actual.equals(expected)) return result(true, null);
+  if (actual.equals(Buffer.concat([expected, Buffer.from("\r\n")]))) return result(false, "terminal_crlf_added");
+  if (actual.equals(Buffer.concat([expected, Buffer.from("\n")]))) return result(false, "terminal_lf_added");
+  if (expected.subarray(-2).equals(Buffer.from("\r\n")) && actual.equals(expected.subarray(0, -2))) return result(false, "terminal_crlf_removed");
+  if (expected.subarray(-1).equals(Buffer.from("\n")) && actual.equals(expected.subarray(0, -1))) return result(false, "terminal_lf_removed");
+  return result(false, "content_mismatch");
+}
+
 export function assessDiagnostic(input: {
   execution: CandidateExecution;
   marker: boolean;
@@ -435,20 +469,21 @@ export async function runDiagnostic(trial: Trial, candidateId: string, adapters:
   const directory = outputDirectory ? resolve(outputDirectory) : resolve("runs", `${trial.id}-diagnostic-${candidateId}-${stamp()}`);
   await mkdir(join(directory, "candidates"), { recursive: true });
   const probe = trial.diagnosticProbe ?? { path: "fixtures/bounded-inventory/src/arena-write-probe.txt", content: "phase1-write-probe\n" };
-  const taskContract = `Create only ${probe.path} containing exactly the supplied content, then terminate.\n\n${probe.content}`;
+  const taskContract = buildDiagnosticTaskContract(probe);
   const diagnosticTimeoutMs = effectiveDiagnosticTimeoutMs(trial);
   const diagnosticTrial = { ...trial, timeoutMs: diagnosticTimeoutMs };
   const result = await candidateRun(diagnosticTrial, candidate, repository, baseline, directory, adapter, { taskContract, validationCommands: [], acceptance: false });
   const expectedProbeBytes = Buffer.from(probe.content, "utf8");
-  const [marker, record, status] = await Promise.all([
-    readFile(join(result.directory, "worktree", ...probe.path.split("/"))).then((value) => value.equals(expectedProbeBytes)).catch(() => false),
+  const [actualProbeBytes, record, status] = await Promise.all([
+    readFile(join(result.directory, "worktree", ...probe.path.split("/"))).catch(() => undefined),
     readFile(join(result.directory, "execution.json"), "utf8").then((text) => JSON.parse(text) as { forbidden_path_changes: string[]; validation_side_effects: boolean }),
     readFile(join(result.directory, "pre-validation-status.json"), "utf8").then((text) => JSON.parse(text) as Pick<WorktreeStatus, "changed_paths" | "tracked_changes" | "untracked_paths" | "ignored_paths">)
   ]);
+  const comparison = compareDiagnosticProbeBytes(actualProbeBytes, expectedProbeBytes);
   const expectedPath = probe.path.replace(/\\/g, "/");
   const assessment = assessDiagnostic({
     execution: result.execution,
-    marker,
+    marker: comparison.marker,
     expectedPath,
     observedPaths: [status.changed_paths, status.tracked_changes, status.untracked_paths, status.ignored_paths].flat(),
     forbiddenPathChanges: record.forbidden_path_changes,
@@ -466,6 +501,9 @@ export async function runDiagnostic(trial: Trial, candidateId: string, adapters:
     failure_reasons: assessment.failureReasons,
     probe_path: expectedPath,
     marker: assessment.marker,
+    marker_mismatch_detail: comparison.mismatchDetail,
+    expected_byte_count: comparison.expectedByteCount,
+    observed_byte_count: comparison.observedByteCount,
     clean_termination: assessment.cleanTermination,
     process_exit_code: result.execution.exitCode,
     timeout: result.execution.timedOut,

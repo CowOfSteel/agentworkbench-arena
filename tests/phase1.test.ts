@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { parse } from "yaml";
 import { CandidateAdapter, CandidateRequest, CandidateExecution, classifyFailure, CodexExecAdapter, codexArgs, executableVersion, extractOpenCodeText, openCodeArgs, openCodePermissionConfig, resolveCodexExecutable, runProcess, sanitizeExecutablePath } from "../src/adapters";
 import { validateFractionalPrice } from "../src/acceptance";
-import { assessDiagnostic, runDiagnostic, runTrial } from "../src/runner";
+import { assessDiagnostic, buildDiagnosticTaskContract, compareDiagnosticProbeBytes, runDiagnostic, runTrial } from "../src/runner";
 import { Candidate, loadTrial, validateTrial } from "../src/trial";
 
 const git = (cwd: string, args: string[]) => execFileSync("git", args, { cwd, encoding: "utf8" });
@@ -393,6 +393,19 @@ class ExtraProbeAdapter extends ProbeAdapter {
   }
 }
 
+class ContractFollowingProbeAdapter implements CandidateAdapter {
+  async doctor() { return { adapter: "fake", ok: true }; }
+  async execute(request: CandidateRequest): Promise<CandidateExecution> {
+    const encoded = request.prompt.match(/^Payload Base64: (\S+)$/m)?.[1];
+    assert.ok(encoded);
+    const probe = join(request.worktree, "fixtures", "bounded-inventory", "src");
+    await mkdir(probe, { recursive: true });
+    await writeFile(join(probe, "arena-write-probe.txt"), Buffer.from(encoded, "base64"));
+    await Promise.all([writeFile(join(request.artifactDirectory, "stdout.log"), "probe\n"), writeFile(join(request.artifactDirectory, "stderr.log"), "")]);
+    return { args: ["fake"], startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:00:00.001Z", durationMs: 1, exitCode: 0, timedOut: false };
+  }
+}
+
 class CapturingProbeAdapter extends ProbeAdapter {
   timeoutMs = 0;
   async execute(request: CandidateRequest): Promise<CandidateExecution> {
@@ -468,12 +481,13 @@ test("diagnostic probe matching is exact UTF-8 bytes without newline normalizati
   const repository = await makeRepository(temporary);
   const expected = "phase5-diagnostic-probe";
   try {
-    for (const [name, actual, passed] of [
-      ["exact", expected, true],
-      ["terminal-newline", `${expected}\n`, false],
-      ["missing-interior-byte", "phase5-dagnostic-probe", false],
-      ["quoted", `\"${expected}\"`, false],
-      ["additional-text", `${expected} complete`, false]
+    for (const [name, actual, passed, detail] of [
+      ["exact", expected, true, null],
+      ["terminal-newline", `${expected}\n`, false, "terminal_lf_added"],
+      ["terminal-crlf", `${expected}\r\n`, false, "terminal_crlf_added"],
+      ["missing-interior-byte", "phase5-dagnostic-probe", false, "content_mismatch"],
+      ["quoted", `\"${expected}\"`, false, "content_mismatch"],
+      ["additional-text", `${expected} complete`, false, "content_mismatch"]
     ] as const) {
       const trial = { ...makeTrial(repository), diagnosticProbe: { path: "fixtures/bounded-inventory/src/arena-write-probe.txt", content: expected } };
       trial.allowedPaths.push("fixtures/bounded-inventory/src");
@@ -481,9 +495,49 @@ test("diagnostic probe matching is exact UTF-8 bytes without newline normalizati
       const diagnostic = JSON.parse(await readFile(result.diagnosticPath, "utf8"));
       assert.equal(result.passed, passed, name);
       assert.equal(diagnostic.marker, passed, name);
+      assert.equal(diagnostic.marker_mismatch_detail, detail, name);
+      assert.equal(diagnostic.expected_byte_count, Buffer.byteLength(expected), name);
+      assert.equal(diagnostic.observed_byte_count, Buffer.byteLength(actual), name);
       if (!passed) assert.equal(diagnostic.failure_classification, "marker_mismatch", name);
     }
   } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("diagnostic task gives every harness one deterministic exact-byte instruction", async () => {
+  const probe = { path: "fixtures/bounded-inventory/src/arena-write-probe.txt", content: "phase5-diagnostic-probe" };
+  const prompt = buildDiagnosticTaskContract(probe);
+  const encoded = Buffer.from(probe.content).toString("base64");
+  const hash = createHash("sha256").update(Buffer.from(probe.content)).digest("hex");
+  assert.match(prompt, new RegExp(probe.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(prompt, new RegExp(`Write exactly ${Buffer.byteLength(probe.content)} UTF-8 bytes`));
+  assert.match(prompt, new RegExp(`Payload Base64: ${encoded}`));
+  assert.match(prompt, new RegExp(`Payload SHA-256: ${hash}`));
+  assert.match(prompt, /fs\.writeFileSync/);
+  const codex = { id: "codex", adapter: "codex-exec" as const, harness: "codex", model: "model" };
+  const openCode = { id: "open", adapter: "opencode-run" as const, harness: "opencode", model: "model", provider: "provider" };
+  assert.equal(codexArgs({ candidate: codex, worktree: "worktree", artifactDirectory: "artifacts", prompt, timeoutMs: 1_000 }).at(-1), prompt);
+  assert.equal(openCodeArgs({ candidate: openCode, worktree: "worktree", artifactDirectory: "artifacts", prompt, timeoutMs: 1_000 }).at(-1), prompt);
+
+  const temporary = await mkdtemp(join(tmpdir(), "arena-diagnostic-contract-"));
+  const repository = await makeRepository(temporary);
+  try {
+    for (const content of [probe.content, `${probe.content}\n`]) {
+      const trial = { ...makeTrial(repository), diagnosticProbe: { path: probe.path, content } };
+      trial.allowedPaths.push("fixtures/bounded-inventory/src");
+      const result = await runDiagnostic(trial, "one", new Map([["codex-exec", new ContractFollowingProbeAdapter()]]), join(temporary, createHash("sha256").update(content).digest("hex")));
+      assert.equal(result.passed, true);
+    }
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("diagnostic byte comparison distinguishes safe mismatch categories", () => {
+  const plain = Buffer.from("payload");
+  assert.equal(compareDiagnosticProbeBytes(undefined, plain).mismatchDetail, "missing");
+  assert.equal(compareDiagnosticProbeBytes(Buffer.from("payload\n"), plain).mismatchDetail, "terminal_lf_added");
+  assert.equal(compareDiagnosticProbeBytes(Buffer.from("payload\r\n"), plain).mismatchDetail, "terminal_crlf_added");
+  assert.equal(compareDiagnosticProbeBytes(plain, Buffer.from("payload\n")).mismatchDetail, "terminal_lf_removed");
+  assert.equal(compareDiagnosticProbeBytes(plain, Buffer.from("payload\r\n")).mismatchDetail, "terminal_crlf_removed");
+  assert.equal(compareDiagnosticProbeBytes(Buffer.from("other"), plain).mismatchDetail, "content_mismatch");
 });
 
 test("diagnostic forwards its finite configured timeout without a 60-second clamp", async () => {
