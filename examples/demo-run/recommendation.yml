@@ -1,4 +1,4 @@
-schema_version: "1.0"
+schema_version: "1.1"
 source:
   run_id: phase3-sol-low-proof-2026-07-20T21-28-41-523Z
   trial_id: phase3-sol-low-proof
@@ -45,7 +45,7 @@ ranking:
         - "Informational lens: Fewest retries."
       why_not:
         - The single expression is slightly denser than B's equivalent implementation.
-    telemetry_coverage: &a1
+    telemetry_coverage:
       available: 19
       unavailable: 11
       metrics:
@@ -179,7 +179,7 @@ ranking:
       why_not:
         - Not the controller recommendation; accepted semantic rank is 2.
         - The intermediate variable adds a line without changing behavior or improving required coverage.
-    telemetry_coverage: &a2
+    telemetry_coverage:
       available: 21
       unavailable: 9
       metrics:
@@ -324,7 +324,7 @@ comparison_topology:
   duplicate_configuration_groups: []
   multi_variable_pair_count: 1
   multi_variable_pairs:
-    - candidates:
+    - candidate_ids:
         - codex-luna-low
         - opencode-luna-low
       differing_dimensions:
@@ -333,6 +333,7 @@ comparison_topology:
         - provider
         - agent
         - permission_policy
+  multi_variable_pairs_truncated: false
   uncomparable_pair_count: 0
   supported_structural_claims: []
   unsupported_causal_claims:
@@ -342,13 +343,13 @@ decision_lenses:
   - id: controller_recommendation
     label: Controller recommendation
     status: winner
-    candidateIds:
+    candidate_ids:
       - codex-luna-low
     reason: Controller-owned evaluation.json outcome.
   - id: fastest_candidate_execution
     label: Fastest candidate execution
     status: winner
-    candidateIds:
+    candidate_ids:
       - codex-luna-low
     values:
       codex-luna-low: 33569
@@ -357,7 +358,7 @@ decision_lenses:
   - id: smallest_total_code_change
     label: Smallest total code change
     status: winner
-    candidateIds:
+    candidate_ids:
       - codex-luna-low
     values:
       codex-luna-low: 2
@@ -366,7 +367,7 @@ decision_lenses:
   - id: fewest_interventions
     label: Fewest interventions
     status: tie
-    candidateIds:
+    candidate_ids:
       - codex-luna-low
       - opencode-luna-low
     values:
@@ -376,7 +377,7 @@ decision_lenses:
   - id: fewest_retries
     label: Fewest retries
     status: tie
-    candidateIds:
+    candidate_ids:
       - codex-luna-low
       - opencode-luna-low
     values:
@@ -386,24 +387,210 @@ decision_lenses:
   - id: lowest_provider_reported_cost
     label: Lowest provider-reported cost
     status: not_comparable
-    candidateIds: []
+    candidate_ids: []
     reason: Eligible candidates lack compatible complete provider cost and currency evidence.
   - id: lowest_token_usage
     label: Lowest reported token usage
     status: not_comparable
-    candidateIds: []
+    candidate_ids: []
     reason: Eligible candidates lack compatible complete token source semantics.
   - id: telemetry_coverage
     label: Telemetry coverage
     status: not_applicable
-    candidateIds: []
+    candidate_ids: []
     values:
-      codex-luna-low: *a1
-      opencode-luna-low: *a2
+      codex-luna-low:
+        available: 19
+        unavailable: 11
+        metrics:
+          wall_clock_ms:
+            status: available_nonzero
+            source: arena
+          validation_wall_clock_ms:
+            status: available_nonzero
+            source: arena
+          total_pipeline_ms:
+            status: available_nonzero
+            source: arena
+          tool_call_count:
+            status: available_nonzero
+            source: codex-jsonl
+          command_count:
+            status: available_nonzero
+            source: codex-jsonl
+          retry_count:
+            status: established_zero
+            source: arena
+          human_intervention_count:
+            status: established_zero
+            source: arena
+          input_tokens:
+            status: unavailable
+            source: codex-jsonl
+          cached_input_tokens:
+            status: unavailable
+            source: codex-jsonl
+          uncached_input_tokens:
+            status: unavailable
+            source: unavailable
+          output_tokens:
+            status: unavailable
+            source: codex-jsonl
+          provider_reported_cost:
+            status: unavailable
+            source: codex-jsonl
+          provider_reported_currency:
+            status: unavailable
+            source: unavailable
+          estimated_cost:
+            status: unavailable
+            source: unavailable
+          estimated_cost_currency:
+            status: unavailable
+            source: unavailable
+          subscription_consumption:
+            status: unavailable
+            source: unavailable
+          quota_percent_before:
+            status: unavailable
+            source: unavailable
+          quota_percent_after:
+            status: unavailable
+            source: unavailable
+          permission_denials:
+            status: established_zero
+            source: codex-jsonl
+          user_questions:
+            status: established_zero
+            source: codex-jsonl
+          manual_prompt_corrections:
+            status: established_zero
+            source: arena
+          manual_file_edits:
+            status: established_zero
+            source: arena
+          aborts:
+            status: established_zero
+            source: arena
+          transport_retries:
+            status: established_zero
+            source: arena
+          files_changed:
+            status: available_nonzero
+            source: arena
+          lines_added:
+            status: available_nonzero
+            source: arena
+          lines_deleted:
+            status: available_nonzero
+            source: arena
+          validation_pass_count:
+            status: available_nonzero
+            source: arena
+          validation_fail_count:
+            status: established_zero
+            source: arena
+          hard_gate_status:
+            status: available_nonzero
+            source: arena
+      opencode-luna-low:
+        available: 21
+        unavailable: 9
+        metrics:
+          wall_clock_ms:
+            status: available_nonzero
+            source: arena
+          validation_wall_clock_ms:
+            status: available_nonzero
+            source: arena
+          total_pipeline_ms:
+            status: available_nonzero
+            source: arena
+          tool_call_count:
+            status: available_nonzero
+            source: opencode-jsonl
+          command_count:
+            status: available_nonzero
+            source: opencode-jsonl
+          retry_count:
+            status: established_zero
+            source: arena
+          human_intervention_count:
+            status: established_zero
+            source: arena
+          input_tokens:
+            status: available_nonzero
+            source: opencode-jsonl
+          cached_input_tokens:
+            status: unavailable
+            source: opencode-jsonl
+          uncached_input_tokens:
+            status: unavailable
+            source: unavailable
+          output_tokens:
+            status: available_nonzero
+            source: opencode-jsonl
+          provider_reported_cost:
+            status: unavailable
+            source: opencode-jsonl
+          provider_reported_currency:
+            status: unavailable
+            source: unavailable
+          estimated_cost:
+            status: unavailable
+            source: unavailable
+          estimated_cost_currency:
+            status: unavailable
+            source: unavailable
+          subscription_consumption:
+            status: unavailable
+            source: unavailable
+          quota_percent_before:
+            status: unavailable
+            source: unavailable
+          quota_percent_after:
+            status: unavailable
+            source: unavailable
+          permission_denials:
+            status: established_zero
+            source: opencode-jsonl
+          user_questions:
+            status: established_zero
+            source: opencode-jsonl
+          manual_prompt_corrections:
+            status: established_zero
+            source: arena
+          manual_file_edits:
+            status: established_zero
+            source: arena
+          aborts:
+            status: established_zero
+            source: arena
+          transport_retries:
+            status: established_zero
+            source: arena
+          files_changed:
+            status: available_nonzero
+            source: arena
+          lines_added:
+            status: available_nonzero
+            source: arena
+          lines_deleted:
+            status: available_nonzero
+            source: arena
+          validation_pass_count:
+            status: available_nonzero
+            source: arena
+          validation_fail_count:
+            status: established_zero
+            source: arena
+          hard_gate_status:
+            status: available_nonzero
+            source: arena
     reason: Informational coverage only; it is not a coding-result quality score.
 judge_execution:
   status: completed
-  failureClassification: permission
+  failure_classification: permission
 source_execution_limitations:
   - "Historical source completion status for A: authentication."
   - "Historical judge original failure classification: permission."
