@@ -4,7 +4,7 @@ import { verifyReport } from "./report";
 
 const rootFiles = new Set(["manifest.json", "task-contract.json", "trial-snapshot.json", "identity-map.json", "evaluation.json", "adjudication.json", "judge-result.json", "sample-metadata.json", "recommendation.yml", "README.md"]);
 const candidateFiles = new Set(["provenance.json", "telemetry.json", "validation.json", "candidate.diff"]);
-const unsafe = /(?:(?:^|[^A-Za-z0-9])[A-Za-z]:[\\/]|\\\\[^\\/]+[\\/]|file:\/\/|\/(?:Users|home)\/|(?:access[_ -]?token|api[_ -]?key|password|secret|credential)\s*[:=])/i;
+const unsafe = /(?:(?:^|[^A-Za-z0-9])[A-Za-z]:[\\/]|\\\\[^\\/]+[\\/]|file:\/\/|\/(?:Users|home|private|mnt|opt|var)\/|(?:access[_ -]?token|api[_ -]?key|password|secret|credential|account[_ -]?(?:id|email)|session[_ -]?(?:id|token))\s*[:=]|\b(?:gh[pousr]_[A-Za-z0-9_]{12,}|sk-[A-Za-z0-9_-]{12,}|xox[baprs]-[A-Za-z0-9-]{12,}|AIza[A-Za-z0-9_-]{20,})\b)/i;
 
 const confined = (root: string, target: string): boolean => { const value = relative(root, target); return value !== "" && !value.startsWith("..") && !isAbsolute(value); };
 const comparable = (path: string): string => {
@@ -26,6 +26,12 @@ async function regularFile(path: string): Promise<void> {
 }
 
 export interface PagesStageResult { directory: string; index: string; files: string[]; }
+
+/** Reject text that cannot appear in a public report artifact. */
+export function assertSafePublicArtifactText(content: string, forbiddenValues: string[] = []): string {
+  if (unsafe.test(content) || forbiddenValues.filter(Boolean).some((value) => content.toLocaleLowerCase().includes(value.toLocaleLowerCase()))) throw new Error("Pages source contains a secret or absolute path");
+  return content;
+}
 
 /** Copy the report's explicit public evidence allowlist into a disposable Pages directory. */
 export async function stagePagesSample(sourceDirectory: string, destinationDirectory: string): Promise<PagesStageResult> {
@@ -64,7 +70,7 @@ export async function stagePagesSample(sourceDirectory: string, destinationDirec
       const sourcePath = relativePath === "index.html" ? join(source, "report.html") : join(source, ...relativePath.split("/"));
       await regularFile(sourcePath);
       const content = await readFile(sourcePath, "utf8");
-      if (unsafe.test(content)) throw new Error("Pages source contains a secret or absolute path");
+      assertSafePublicArtifactText(content);
       const target = join(destination, ...relativePath.split("/"));
       if (!confined(destination, target)) throw new Error("Pages path escapes staging directory");
       await mkdir(join(target, ".."), { recursive: true });

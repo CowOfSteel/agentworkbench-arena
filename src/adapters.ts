@@ -73,7 +73,7 @@ export const classifyFailure = (message: string, timedOut: boolean, exitCode: nu
   return exitCode !== 0 ? "candidate_task" : undefined;
 };
 
-async function terminateProcessTree(child: import("node:child_process").ChildProcess): Promise<void> {
+export async function terminateProcessTree(child: import("node:child_process").ChildProcess): Promise<void> {
   if (!child.pid) return;
   if (process.platform === "win32") {
     const { execFile } = await import("node:child_process");

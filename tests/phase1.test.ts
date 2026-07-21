@@ -384,6 +384,14 @@ class MissingProbeAdapter implements CandidateAdapter {
   }
 }
 
+class ExtraProbeAdapter extends ProbeAdapter {
+  async execute(request: CandidateRequest): Promise<CandidateExecution> {
+    const result = await super.execute(request);
+    await writeFile(join(request.worktree, "fixtures", "bounded-inventory", "src", "extra-probe.txt"), "unexpected\n");
+    return result;
+  }
+}
+
 test("diagnostic records a bounded successful write probe", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "arena-diagnostic-"));
   const repository = await makeRepository(temporary);
@@ -417,6 +425,18 @@ test("diagnostic fails when the expected probe file is absent", async () => {
     const result = await runDiagnostic(trial, "one", new Map([["codex-exec", new MissingProbeAdapter()]]), join(temporary, "output"));
     assert.equal(result.passed, false);
     assert.equal(JSON.parse(await readFile(result.diagnosticPath, "utf8")).marker, false);
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("diagnostic rejects an otherwise allowed extra path", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-diagnostic-extra-"));
+  const repository = await makeRepository(temporary);
+  try {
+    const trial = makeTrial(repository);
+    trial.allowedPaths.push("fixtures/bounded-inventory/src");
+    const result = await runDiagnostic(trial, "one", new Map([["codex-exec", new ExtraProbeAdapter()]]), join(temporary, "output"));
+    const diagnostic = JSON.parse(await readFile(result.diagnosticPath, "utf8"));
+    assert.equal(result.passed, false); assert.deepEqual(diagnostic.unexpected_paths, ["fixtures/bounded-inventory/src/extra-probe.txt"]);
   } finally { await rm(temporary, { recursive: true, force: true }); }
 });
 

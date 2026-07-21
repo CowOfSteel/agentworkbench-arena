@@ -12,7 +12,8 @@ import { configurationHash, reasoningProvenance, trialSnapshot } from "../src/te
 import { loadTrial, validateTrial } from "../src/trial";
 import { topologyFromTrial } from "../src/topology";
 import { doctorTrial } from "../src/doctor";
-import { verifyClean } from "../src/clean-verify";
+import { runCleanCommand, verifyClean } from "../src/clean-verify";
+import { verifySchedulerBaseline } from "../src/scheduler-baseline";
 import { sanitizeSample } from "../src/sanitize";
 import { generateReport } from "../src/report";
 import { parse } from "yaml";
@@ -71,9 +72,19 @@ test("route-aware doctor reports all candidates, deduplicates routes, and never 
   assert.equal(blocked.candidates.length, 6); assert.equal(blocked.provider_routes.length, 4); assert.equal(blocked.readiness, "blocked"); assert.ok(blocked.candidates.filter((candidate) => candidate.adapter === "opencode-run").every((candidate) => candidate.failure_classification === "unresolved_placeholder"));
   const ready = { ...raw, candidates: raw.candidates.map((candidate) => candidate.adapter === "opencode-run" ? { ...candidate, adapterOptions: { native_variant: "max" } } : candidate) };
   const report = await doctorTrial(ready, adapters, dependencies);
-  assert.equal(report.readiness, "ready"); assert.ok(calls > 0); assert.ok(report.candidates.every((candidate) => candidate.command_shape.at(-1)?.startsWith("<task-contract:")));
+  assert.equal(report.readiness, "ready"); assert.ok(calls > 0); assert.ok(report.candidates.every((candidate) => candidate.command_shape.at(-1)?.startsWith("<task-contract:"))); assert.ok(report.candidates.filter((candidate) => candidate.adapter === "opencode-run").every((candidate) => candidate.variant_syntax === "declared_unverified" && candidate.warnings.some((warning) => /diagnostic/.test(warning))));
   const unavailable = await doctorTrial(ready, adapters, { ...dependencies, commandStatus: async (_command: string, args: string[]) => args[0] === "models" ? { ok: false, stdout: "", error: "offline", unavailable: false } : { ok: true, stdout: "OpenAI\nOpenCode Go\nDeepSeek", unavailable: false } });
   assert.ok(unavailable.candidates.some((candidate) => candidate.failure_classification === "model_discovery_unavailable"));
+});
+
+test("doctor checks candidate-specific executable overrides instead of adapter-only cache entries", async () => {
+  const trial = validateTrial({ id: "doctor-overrides", repository: "repo", baseline_ref: "base", task_contract: "task", allowed_paths: ["src"], forbidden_paths: ["acceptance"], validation_commands: [[process.execPath, "-e", ""]], validation_timeout_ms: 1, dependency_policy: "no_changes", timeout_ms: 1, retry_policy: { max_launch_transport_retries: 1 }, manual_intervention: "forbidden", provenance: {}, candidates: [
+    { id: "available", adapter: "codex-exec", harness: "codex", model: "gpt", adapter_options: { codex_executable: "available.cmd" } },
+    { id: "missing", adapter: "codex-exec", harness: "codex", model: "gpt", adapter_options: { codex_executable: "missing.cmd" } }
+  ] });
+  const checked: string[] = [], adapters: any = new Map([["codex-exec", { doctor: async (candidate: any) => { checked.push(candidate.adapterOptions.codex_executable); return candidate.adapterOptions.codex_executable === "available.cmd" ? { adapter: "codex", ok: true, executable_status: "available" } : { adapter: "codex", ok: false, executable_status: "unavailable" }; } }]]);
+  const report = await doctorTrial(trial, adapters);
+  assert.deepEqual(checked, ["available.cmd", "missing.cmd"]); assert.equal(report.candidates.find((candidate) => candidate.candidate_id === "available")?.readiness, "ready"); assert.equal(report.candidates.find((candidate) => candidate.candidate_id === "missing")?.failure_classification, "adapter_unavailable");
 });
 
 test("OpenCode permission layering preserves a separate provider config and refuses inline replacement", () => {
@@ -83,10 +94,51 @@ test("OpenCode permission layering preserves a separate provider config and refu
   assert.equal(processInvocation("tool.cmd", ["one"], "win32").command.toLowerCase().endsWith("cmd.exe"), true);
 });
 
-test("clean verification accepts only the expected baseline acceptance failure", async () => {
+const baselineTap = [
+  "✔ canonical scheduler acceptance: FIFO and concurrency never exceed the limit (1ms)",
+  "✖ canonical scheduler acceptance: duplicate IDs, cancellation, and terminal ID reuse (1ms)",
+  "✖ canonical scheduler acceptance: retries, drain, and final errors are deterministic (1ms)",
+  "ℹ tests 3", "ℹ pass 1", "ℹ fail 2", "AssertionError [ERR_ASSERTION]", "AssertionError [ERR_ASSERTION]"
+].join("\n");
+
+test("scheduler baseline contract accepts only the named defective behavioral evidence", async () => {
+  const normal = async (_command: string, args: string[]) => args.includes("--test") ? { exit_code: 1, timeout: false, launch_error: null, stdout: baselineTap, stderr: "" } : { exit_code: 0, timeout: false, launch_error: null, stdout: "", stderr: "" };
+  assert.equal((await verifySchedulerBaseline({ root, run: normal })).status, "VERIFIED");
+  const cases: Array<[string, any, string]> = [
+    ["compile failure", async () => ({ exit_code: 1, timeout: false, launch_error: null, stdout: "", stderr: "" }), "compile_failure"],
+    ["launch failure", async () => ({ exit_code: null, timeout: false, launch_error: "missing", stdout: "", stderr: "" }), "compile_launch_failure"],
+    ["timeout", async () => ({ exit_code: null, timeout: true, launch_error: null, stdout: "", stderr: "" }), "compile_timeout"],
+    ["missing acceptance", async (_command: string, args: string[]) => args.includes("--test") ? { exit_code: 1, timeout: false, launch_error: null, stdout: "Cannot find module scheduler.acceptance.test.js", stderr: "" } : { exit_code: 0, timeout: false, launch_error: null, stdout: "", stderr: "" }, "acceptance_infrastructure_failure"],
+    ["syntax error", async (_command: string, args: string[]) => args.includes("--test") ? { exit_code: 1, timeout: false, launch_error: null, stdout: "SyntaxError: unexpected token", stderr: "" } : { exit_code: 0, timeout: false, launch_error: null, stdout: "", stderr: "" }, "acceptance_infrastructure_failure"],
+    ["arbitrary failure", async (_command: string, args: string[]) => args.includes("--test") ? { exit_code: 1, timeout: false, launch_error: null, stdout: "failure", stderr: "" } : { exit_code: 0, timeout: false, launch_error: null, stdout: "", stderr: "" }, "canonical_test_inventory_mismatch"],
+    ["unexpected pass", async (_command: string, args: string[]) => args.includes("--test") ? { exit_code: 0, timeout: false, launch_error: null, stdout: baselineTap, stderr: "" } : { exit_code: 0, timeout: false, launch_error: null, stdout: "", stderr: "" }, "unexpected_acceptance_pass"]
+  ];
+  for (const [, run, classification] of cases) assert.equal((await verifySchedulerBaseline({ root, run })).classification, classification);
+});
+
+test("clean verification invokes the baseline contract as a normal passing command and rejects failed cleanup", async () => {
   const calls: string[] = [];
-  const result = await verifyClean({ root, run: async (_command, args) => { calls.push(args.join(" ")); if (args.includes("pack")) return { exit_code: 0, timeout: false, launch_error: null, stdout: '[{"filename":"arena.tgz"}]' }; if (args.includes("scheduler:acceptance")) return { exit_code: 1, timeout: false, launch_error: null, stdout: "" }; return { exit_code: 0, timeout: false, launch_error: null, stdout: "" }; } });
-  assert.equal(result.status, "VERIFIED"); assert.ok(result.checks.some((check) => check.id === "scheduler_baseline_acceptance" && check.classification === "expected_baseline_acceptance_failure")); assert.ok(calls.some((value) => value.includes("worktree add")));
+  const result = await verifyClean({ root, run: async (_command, args) => { calls.push(args.join(" ")); if (args.includes("pack")) return { exit_code: 0, timeout: false, launch_error: null, stdout: '[{"filename":"arena.tgz"}]' }; return { exit_code: 0, timeout: false, launch_error: null, stdout: "", stderr: "" }; } });
+  assert.equal(result.status, "VERIFIED"); assert.ok(result.checks.some((check) => check.id === "scheduler_baseline_contract" && check.classification === "completed")); assert.ok(calls.some((value) => value.includes("scheduler:baseline-contract")));
+  let worktree = "";
+  const failedRemoval = await verifyClean({ root, run: async (_command, args) => {
+    if (args[0] === "worktree" && args[1] === "add") { worktree = args[3]; return { exit_code: 0, timeout: false, launch_error: null, stdout: "", stderr: "" }; }
+    if (args[0] === "worktree" && args[1] === "remove") return { exit_code: 1, timeout: false, launch_error: null, stdout: "", stderr: "" };
+    if (args[0] === "worktree" && args[1] === "list") return { exit_code: 0, timeout: false, launch_error: null, stdout: `worktree ${worktree}\n`, stderr: "" };
+    if (args.includes("pack")) return { exit_code: 0, timeout: false, launch_error: null, stdout: '[{"filename":"arena.tgz"}]', stderr: "" };
+    return { exit_code: 0, timeout: false, launch_error: null, stdout: "", stderr: "" };
+  } });
+  assert.equal(failedRemoval.status, "FAILED"); assert.ok(failedRemoval.checks.some((check) => check.id === "worktree_registration" && check.status === "failed"));
+});
+
+test("clean command timeout terminates a descendant process", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-clean-tree-")), marker = join(temporary, "descendant.txt");
+  try {
+    const child = `const {spawn}=require('node:child_process'); const fs=require('node:fs'); spawn(process.execPath,['-e',${JSON.stringify(`setTimeout(()=>fs.writeFileSync(${JSON.stringify(marker)}, 'leaked'), 250)`) }],{stdio:'ignore'}); setInterval(()=>{},1000);`;
+    const result = await runCleanCommand(process.execPath, ["-e", child], root, 50);
+    assert.equal(result.timeout, true); await new Promise((resolve) => setTimeout(resolve, 350));
+    assert.equal(await readFile(marker, "utf8").then(() => true).catch(() => false), false);
+  } finally { await rm(temporary, { recursive: true, force: true }); }
 });
 
 test("sample sanitation is deterministic, verifies output, and preserves the source run", async () => {
@@ -94,10 +146,35 @@ test("sample sanitation is deterministic, verifies output, and preserves the sou
   try {
     await cp(resolve(root, "examples", "demo-run"), source, { recursive: true });
     await generateReport(source);
-    const before = await readFile(join(source, "manifest.json"), "utf8");
+    const before = await Promise.all(["manifest.json", "candidates/codex-luna-low/provenance.json", "candidates/codex-luna-low/validation.json"].map((path) => readFile(join(source, ...path.split("/")), "utf8")));
     const first = await sanitizeSample(source, output), report = await readFile(join(output, "report.html"), "utf8");
-    assert.equal(first.report, "report.html"); assert.match(report, /Arena static product report/); assert.equal(await readFile(join(source, "manifest.json"), "utf8"), before);
-    await sanitizeSample(source, output); assert.equal(await readFile(join(source, "manifest.json"), "utf8"), before);
+    assert.equal(first.report, "report.html"); assert.match(report, /Arena static product report/); assert.deepEqual(await Promise.all(["manifest.json", "candidates/codex-luna-low/provenance.json", "candidates/codex-luna-low/validation.json"].map((path) => readFile(join(source, ...path.split("/")), "utf8"))), before);
+    await sanitizeSample(source, output); assert.deepEqual(await Promise.all(["manifest.json", "candidates/codex-luna-low/provenance.json", "candidates/codex-luna-low/validation.json"].map((path) => readFile(join(source, ...path.split("/")), "utf8"))), before);
     await writeFile(join(source, "manifest.json"), "{}", "utf8"); await assert.rejects(() => sanitizeSample(source, join(temporary, "rejected")), /verified/);
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("sample sanitation omits unknown nested values and rejects unsafe known public evidence", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-sanitize-malicious-"));
+  try {
+    const source = join(temporary, "source"), clean = join(temporary, "clean"), provenancePath = join(source, "candidates", "codex-luna-low", "provenance.json");
+    await cp(resolve(root, "examples", "demo-run"), source, { recursive: true });
+    const provenance = JSON.parse(await readFile(provenancePath, "utf8"));
+    provenance.candidate_tool_provenance = { explicitly_enabled: [], hidden: { api_key: "sk-abcdefghijklmnop" } };
+    provenance.reasoning = { ...provenance.reasoning, hidden: { session_id: "session-123" } };
+    await writeFile(provenancePath, JSON.stringify(provenance, null, 2)); await generateReport(source);
+    await sanitizeSample(source, clean);
+    const sanitized = await readFile(join(clean, "candidates", "codex-luna-low", "provenance.json"), "utf8");
+    assert.doesNotMatch(sanitized, /sk-abcdefghijklmnop|session-123|hidden/);
+
+    const badModel = join(temporary, "bad-model"); await cp(source, badModel, { recursive: true });
+    const modelPath = join(badModel, "candidates", "codex-luna-low", "provenance.json"), model = JSON.parse(await readFile(modelPath, "utf8"));
+    model.model = "C:\\Users\\private\\model"; await writeFile(modelPath, JSON.stringify(model, null, 2)); await generateReport(badModel);
+    await assert.rejects(() => sanitizeSample(badModel, join(temporary, "bad-model-sample")), /secret or absolute path/);
+
+    const badValidation = join(temporary, "bad-validation"); await cp(source, badValidation, { recursive: true });
+    const validationPath = join(badValidation, "candidates", "codex-luna-low", "validation.json"), validation = JSON.parse(await readFile(validationPath, "utf8"));
+    validation.commands[0].args = ["C:\\Users\\private\\tool"]; await writeFile(validationPath, JSON.stringify(validation, null, 2)); await generateReport(badValidation);
+    await assert.rejects(() => sanitizeSample(badValidation, join(temporary, "bad-validation-sample")), /secret or absolute path/);
   } finally { await rm(temporary, { recursive: true, force: true }); }
 });

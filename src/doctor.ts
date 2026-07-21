@@ -8,7 +8,7 @@ export interface CandidateDoctorRecord {
   candidate_id: string; adapter: string; harness: string; provider: string | null; provider_route: string | null; model: string;
   native_reasoning_effort: string | null; native_variant: string | null; agent: string | null; profile: string | null;
   command_shape: string[]; executable: "available" | "unavailable"; authentication: "available" | "missing" | "unknown";
-  model_discovery: "present" | "missing" | "not_supported" | "unavailable"; variant_syntax: "supported" | "not_discoverable" | "not_applicable";
+  model_discovery: "present" | "missing" | "not_supported" | "unavailable"; variant_syntax: "supported" | "declared_unverified" | "not_declared" | "not_applicable";
   configuration_layering: "composed" | "blocked" | "not_applicable"; readiness: Readiness; failure_classification: string | null; warnings: string[]; placeholders: string[];
 }
 export interface ProviderRouteRecord { adapter: string; harness: string; provider: string | null; provider_route: string | null; candidate_ids: string[]; readiness: Readiness; failure_classifications: string[]; }
@@ -29,20 +29,20 @@ async function openCodeFacts(provider: string, dependencies: DoctorDependencies)
 
 export async function doctorTrial(trial: Trial, adapters: Map<string, CandidateAdapter>, dependencies: DoctorDependencies = {}): Promise<DoctorReport> {
   const trialHash = createHash("sha256").update(trial.taskContract).digest("hex");
-  const adapterResults = new Map<string, Awaited<ReturnType<CandidateAdapter["doctor"]>>>();
-  for (const candidate of trial.candidates) if (!adapterResults.has(candidate.adapter)) {
+  const adapterResults: Array<Awaited<ReturnType<CandidateAdapter["doctor"]>>> = [];
+  for (const candidate of trial.candidates) {
     const adapter = adapters.get(candidate.adapter); if (!adapter) throw new Error(`no adapter registered for ${candidate.adapter}`);
-    adapterResults.set(candidate.adapter, await adapter.doctor(candidate));
+    adapterResults.push(await adapter.doctor(candidate));
   }
   const openCodeCache = new Map<string, Promise<Awaited<ReturnType<typeof openCodeFacts>>>>();
   const candidates: CandidateDoctorRecord[] = [];
-  for (const candidate of trial.candidates) {
-    const adapter = adapterResults.get(candidate.adapter)!;
+  for (const [index, candidate] of trial.candidates.entries()) {
+    const adapter = adapterResults[index];
     const placeholders = [...new Set(unresolvedPlaceholders(candidate))].sort();
     const variant = nativeVariant(candidate), warnings: string[] = [];
     let authentication: CandidateDoctorRecord["authentication"] = adapter.authentication?.existing_cli_state === "usable" ? "available" : adapter.ok ? "unknown" : "missing";
     let modelDiscovery: CandidateDoctorRecord["model_discovery"] = candidate.adapter === "codex-exec" ? "not_supported" : "unavailable";
-    let variantSyntax: CandidateDoctorRecord["variant_syntax"] = candidate.adapter === "codex-exec" ? "not_applicable" : variant ? "supported" : "not_discoverable";
+    let variantSyntax: CandidateDoctorRecord["variant_syntax"] = candidate.adapter === "codex-exec" ? "not_applicable" : variant ? "declared_unverified" : "not_declared";
     let layering: CandidateDoctorRecord["configuration_layering"] = candidate.adapter === "opencode-run" ? adapter.configuration_layering?.status ?? "blocked" : "not_applicable";
     let failure: string | null = placeholders.length ? "unresolved_placeholder" : !adapter.ok ? "adapter_unavailable" : null;
     if (candidate.adapter === "codex-exec" && candidate.nativeReasoningEffort && !codexEfforts.has(candidate.nativeReasoningEffort)) failure ??= "unsupported_native_reasoning";
@@ -57,12 +57,17 @@ export async function doctorTrial(trial: Trial, adapters: Map<string, CandidateA
         if (authentication !== "available") failure ??= authentication === "missing" ? "authentication_missing" : "authentication_unknown";
       }
       if (layering === "blocked") failure ??= "configuration_layering_blocked";
-      if (variantSyntax === "not_discoverable") warnings.push("native variant is not declared; legacy attention is used only when present");
+      if (variantSyntax === "declared_unverified") warnings.push("native variant is declared but OpenCode does not locally enumerate model-specific variant support; the bounded diagnostic must confirm it");
+      if (variantSyntax === "not_declared") warnings.push("native variant is not declared; legacy attention is used only when present");
     }
     if (candidate.adapter === "codex-exec" && modelDiscovery === "not_supported") warnings.push("Codex exposes no local model-list command; route doctor validates executable, authentication, and declared effort only");
     candidates.push({ candidate_id: candidate.id, adapter: candidate.adapter, harness: candidate.harness, provider: candidate.provider ?? null, provider_route: candidate.providerRoute ?? null, model: candidate.model, native_reasoning_effort: candidate.nativeReasoningEffort ?? null, native_variant: variant, agent: candidate.agent ?? null, profile: candidate.profile ?? null, command_shape: shape(candidate, trialHash), executable: adapter.executable_status === "available" ? "available" : "unavailable", authentication, model_discovery: modelDiscovery, variant_syntax: variantSyntax, configuration_layering: layering, readiness: failure ? "blocked" : "ready", failure_classification: failure, warnings, placeholders });
   }
-  const adapter_readiness = [...adapterResults.entries()].map(([adapter, result]) => ({ adapter, executable: result.executable_status === "available" ? "available" as const : "unavailable" as const, authentication: result.authentication?.existing_cli_state === "usable" ? "available" as const : result.ok ? "unknown" as const : "missing" as const, readiness: result.ok ? "ready" as const : "blocked" as const, failure_classification: result.ok ? null : "adapter_unavailable" }));
+  const adapter_readiness = [...new Set(trial.candidates.map((candidate) => candidate.adapter))].map((adapter) => {
+    const results = trial.candidates.map((candidate, index) => candidate.adapter === adapter ? adapterResults[index] : undefined).filter((result): result is Awaited<ReturnType<CandidateAdapter["doctor"]>> => Boolean(result));
+    const ok = results.every((result) => result.ok), usable = results.every((result) => result.authentication?.existing_cli_state === "usable");
+    return { adapter, executable: results.every((result) => result.executable_status === "available") ? "available" as const : "unavailable" as const, authentication: usable ? "available" as const : ok ? "unknown" as const : "missing" as const, readiness: ok ? "ready" as const : "blocked" as const, failure_classification: ok ? null : "adapter_unavailable" };
+  });
   const routes = new Map<string, ProviderRouteRecord>();
   for (const candidate of candidates) {
     const key = [candidate.adapter, candidate.harness, candidate.provider ?? "", candidate.provider_route ?? ""].join("\u0000"), current = routes.get(key) ?? { adapter: candidate.adapter, harness: candidate.harness, provider: candidate.provider, provider_route: candidate.provider_route, candidate_ids: [], readiness: "ready" as Readiness, failure_classifications: [] };
