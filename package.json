@@ -16,8 +16,10 @@
     "scheduler:typecheck": "tsc -p fixtures/concurrency-scheduler/tsconfig.json --noEmit",
     "scheduler:test": "tsc -p fixtures/concurrency-scheduler/tsconfig.json && node --test fixtures/concurrency-scheduler/dist/tests/scheduler.test.js",
     "scheduler:acceptance": "tsc -p fixtures/concurrency-scheduler/tsconfig.json && node --test fixtures/concurrency-scheduler/acceptance/scheduler.acceptance.test.js",
+    "scheduler:baseline-contract": "npm run build && node dist/src/scheduler-baseline.js",
     "start": "node dist/src/index.js",
-    "demo": "npm run build && node dist/src/index.js demo"
+    "demo": "npm run build && node dist/src/index.js demo",
+    "verify:clean": "npm run build && node dist/src/clean-verify.js"
   },
   "engines": {
     "node": ">=20"
@@ -28,5 +30,8 @@
   },
   "dependencies": {
     "yaml": "^2.9.0"
-  }
+  },
+  "bundledDependencies": [
+    "yaml"
+  ]
 }

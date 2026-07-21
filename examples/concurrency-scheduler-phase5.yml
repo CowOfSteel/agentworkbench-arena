@@ -23,6 +23,9 @@ validation_commands:
   - [npm, run, scheduler:typecheck]
   - [npm, run, scheduler:test]
 acceptance_command: [npm, run, scheduler:acceptance]
+diagnostic_probe:
+  path: fixtures/concurrency-scheduler/src/arena-write-probe.txt
+  content: "phase5-diagnostic-probe\n"
 validation_timeout_ms: 180000
 dependency_policy: no_changes
 timeout_ms: 900000
@@ -69,7 +72,7 @@ candidates:
   - id: terra-high-opencode-openai
     adapter: opencode-run
     harness: opencode
-    provider: REPLACE_OPENCODE_OPENAI_PROVIDER_ID
+    provider: openai
     model: gpt-5.6-terra
     display_name: Terra High via OpenCode OpenAI API
     display_variant: High
@@ -81,8 +84,8 @@ candidates:
   - id: deepseek-v4-flash-max-opencode-go
     adapter: opencode-run
     harness: opencode
-    provider: REPLACE_OPENCODE_GO_DEEPSEEK_PROVIDER_ID
-    model: REPLACE_OPENCODE_GO_DEEPSEEK_V4_FLASH_MODEL_ID
+    provider: opencode-go
+    model: deepseek-v4-flash
     display_name: DeepSeek V4 Flash Max via OpenCode Go
     display_variant: Max
     native_reasoning_effort: max
@@ -93,7 +96,7 @@ candidates:
   - id: deepseek-v4-flash-max-opencode-direct
     adapter: opencode-run
     harness: opencode
-    provider: REPLACE_OPENCODE_DIRECT_DEEPSEEK_PROVIDER_ID
+    provider: deepseek
     model: deepseek-v4-flash
     display_name: DeepSeek V4 Flash Max via OpenCode direct DeepSeek API
     display_variant: Max

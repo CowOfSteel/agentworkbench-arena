@@ -41,3 +41,8 @@
 39. Explicit `display_name` and `display_variant` are presentation metadata. Native reasoning effort, native harness variant, and provider route are configuration identity/provenance facts; topology excludes the display fields and uses legacy attention only when explicit native reasoning is absent.
 40. DeepSeek compatibility mappings are recorded only for explicit DeepSeek provider routes (`low`/`medium` to `high`, `xhigh` to `max`) with a documented evidence source; Arena never silently translates a harness variant.
 41. The concurrency-scheduler fixture and six-candidate template are Phase 5 preparation only. Its canonical acceptance test directory is forbidden to candidates; omitted `acceptance_command` retains the historical fractional-price acceptance validator.
+42. The scheduler baseline is intentionally defective. Its canonical acceptance suite must fail quickly and deterministically at baseline, while a candidate worktree must pass it without modifying the forbidden acceptance directory.
+43. Route doctoring is credential-safe and model-free. Executable availability alone never establishes provider-route readiness.
+44. Arena preserves a supplied `OPENCODE_CONFIG` and applies only a permission-only `OPENCODE_CONFIG_CONTENT` layer. A pre-existing inline configuration is refused rather than inspected or overwritten.
+45. Public sample sanitation accepts only finalized verified evidence, uses an explicit allowlist, and never modifies its source run.
+46. The clean-install smoke test bundles Arena's sole runtime dependency so its packed CLI can be installed and verified offline after the outer dependency installation.

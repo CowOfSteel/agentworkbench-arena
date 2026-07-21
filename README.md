@@ -4,7 +4,7 @@ AgentWorkbench Arena is a repository-specific coding-agent configuration calibra
 
 Phase 1 native feasibility is complete with a passing `LIVE_MODE` gate. Phase 2 supplies deterministic telemetry, independent canonical validation, explicit hard gates, and a portable run manifest. Phase 3 can consume only finalized Phase 2 packets for identity-masked semantic adjudication; deterministic hard gates remain authoritative.
 
-Phase 3 implementation, deterministic tests, Windows CI, and the bounded authenticated Sol Low proof are complete. Phase 4 provides deterministic static HTML/YAML reporting and an offline sanitized demo. Phase 4.5 adds the product workflow, offline preflight, structural topology, decision lenses, verification, and a Pages-ready sample path. Sol High remains reserved for final end-to-end stabilization; Phase 5 has not started.
+Phase 3 implementation, deterministic tests, Windows CI, and the bounded authenticated Sol Low proof are complete. Phase 4 provides deterministic static HTML/YAML reporting and an offline sanitized demo. Phase 4.5 adds the product workflow, offline preflight, structural topology, decision lenses, verification, and a Pages-ready sample path. PR #5 merged at `c9baa1fa22331325f5bdd17aa87c7224eca0af3f`; Phase 5 reproducibility implementation is ready for audit, while Sol High remains reserved for final human-controlled stabilization.
 
 ## Start here
 
@@ -25,8 +25,10 @@ npm install
 npm run build
 npm test
 npm run demo
+npm run verify:clean
 npm start -- init practical-comparison trial.yml
 npm start -- preview trial.yml
+npm start -- doctor examples/concurrency-scheduler-phase5.yml
 npm start -- verify examples/demo-run
 # Human-run only when ready to use native candidates and Sol:
 npm start -- calibrate trial.yml --reasoning low
@@ -95,11 +97,20 @@ The committed bounded two-candidate proof is also the public sample path. After 
 
 OpenAI GPT-5.6 native efforts are `none`, `low`, `medium`, `high`, `xhigh`, and `max`. DeepSeek V4 efforts are `high` and `max`; for the explicit DeepSeek routes Arena records `low`/`medium` → `high` and `xhigh` → `max` as documented compatibility, rather than changing a harness argument. It records requested harness variant, effective provider effort, and evidence source separately.
 
-Before a human runs this template, resolve each `REPLACE_*` value and record installed Codex/OpenCode versions; `codex exec --help`; `opencode run --help`; `opencode models`; a credential-safe provider-configuration inspection; one bounded doctor/diagnostic per unique route; and a dry-run/argument-shape proof for every native effort. Create the immutable baseline only after selecting the commit:
+Before a human runs this template, resolve each `REPLACE_*` value and record installed Codex/OpenCode versions; `codex exec --help`; `opencode run --help`; `opencode models`; a credential-safe provider-configuration inspection; one bounded doctor/diagnostic per unique route; and a dry-run/argument-shape proof for every native effort. The frozen scheduler fixture baseline is `8dda0e4068a8b7fb27793cfbab6947076ec24e7f`; create its immutable tag only after human confirmation:
 
 ```text
-git tag -a phase5-concurrency-scheduler-baseline -m "Phase 5 scheduler baseline" <baseline-commit>
+git tag -a phase5-concurrency-scheduler-baseline -m "Phase 5 scheduler baseline" 8dda0e4068a8b7fb27793cfbab6947076ec24e7f
+git push origin phase5-concurrency-scheduler-baseline
 ```
+
+## Phase 5 reproducibility and stabilization
+
+`npm run verify:clean` creates and removes an isolated Git worktree, proves the offline build/demo/report path, and smoke-tests the installed `arena` bin. `npm run scheduler:baseline-contract` compiles the fixture and proves the intentional baseline failure through the exact canonical `node:test` inventory, bounded TAP output, and expected behavioral assertions; it rejects launch, syntax, module-resolution, timeout, and unexpected-pass failures.
+
+`arena doctor <trial.yml>` reports adapter, per-candidate, and provider-route readiness without invoking a coding model. It rejects unresolved placeholders and unsafe OpenCode inline configuration composition. A declared OpenCode variant is `declared_unverified` until a bounded diagnostic proves provider acceptance. `arena sanitize-sample <verified-run> <output>` creates a field-allowlisted, scanned derivative without changing the verified source run.
+
+See [the Phase 5 runbook](docs/PHASE5-RUNBOOK.md) for offline sample mode, live prerequisites, the exact human-only flagship sequence, privacy limits, Pages enablement, and repository-access checks. See [environment resolution](docs/PHASE5-ENVIRONMENT-RESOLUTION.md) for the nonsecret identifiers established locally.
 
 Phase 1 contains the fixture, YAML trial schema, Codex and OpenCode native adapters, sequential worktree runner, and raw evidence preservation. Candidate count is configuration data: the first trial has six candidates, while adding a seventh changes only the trial file.
 

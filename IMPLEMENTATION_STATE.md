@@ -4,7 +4,7 @@
 
 Phase 4 static reporting and its bounded audit repair are complete. PR #4 merged to `main` at `ba100ccde184e1602446534c3c60cb5cd21a62c3`; its local Phase 1–4 and fixture suites plus Windows CI run `29796809979` passed. Reporting consumes finalized artifacts without adapters, preserves controller ordering and hard-gate authority, and generates deterministic `report.html` and non-operative `recommendation.yml`.
 
-Phase 4.5 product experience is complete on `phase4-5/product-experience`. Its canonical calibration workflow, templates, preview, topology, presentation lenses, coverage, verification, and Pages staging remain bounded around the completed Phase 1–4 pipeline and add no new evidence or semantic authority. The final repair records identity-safe judge-validation diagnostics, uses a bounded candidate-count-aware response ceiling, preserves one structural repair, and prepares (without executing) the separate concurrency-scheduler Phase 5 fixture/trial. Explicit display/native/provider-route provenance remains backward-compatible, and configured canonical acceptance commands preserve the historical fractional-price path when omitted. The final human six-candidate Low adjudication proof passed with recommendation `codex-luna-high`; report generation passed and `arena verify` returned `VERIFIED`. Windows CI run `29805328842` passed. `PHASE_4_5_GATE: PASS`; Phase 5 is ready only after PR #5 merges and `PHASE_5_READY: YES_AFTER_MERGE`.
+Phase 4.5 product experience is complete and merged to `main` through PR #5 at `c9baa1fa22331325f5bdd17aa87c7224eca0af3f`. Its canonical calibration workflow, templates, preview, topology, presentation lenses, coverage, verification, and Pages staging remain bounded around the completed Phase 1–4 pipeline and add no new evidence or semantic authority. The final repair records identity-safe judge-validation diagnostics, uses a bounded candidate-count-aware response ceiling, preserves one structural repair, and prepares (without executing) the separate concurrency-scheduler Phase 5 fixture/trial. Explicit display/native/provider-route provenance remains backward-compatible, and configured canonical acceptance commands preserve the historical fractional-price path when omitted. The final human six-candidate Low adjudication proof passed with recommendation `codex-luna-high`; report generation passed and `arena verify` returned `VERIFIED`. Windows CI run `29805328842` passed. Phase 5 deterministic reproducibility implementation is complete and ready for audit; no native flagship run or Sol invocation occurred.
 
 Final Phase 4.5 current-head verification supersedes earlier implementation-run references: Windows CI run `29805328842` passed for this documented closeout state.
 
@@ -96,6 +96,7 @@ Phase 3 closeout implementation reference:
 - Phase 4.5 verification - `typecheck`, `build`, 53 tests, fixture typecheck/test, offline demo, six-candidate preview, read-only demo verification, and `git diff --check` passed; Windows workflow run `29799574020` passed.
 - Phase 4.5 audit repairs - `typecheck`, `build`, 55 tests, fixture typecheck/test, offline demo, six-candidate preview, read-only demo verification, and `git diff --check` passed; current-head Windows workflow run `29801870917` passed.
 - Final Phase 4.5 repair and Phase 5 trial preparation - `typecheck`, `build`, 61 tests, bounded-inventory fixture checks, scheduler fixture typecheck/test, offline demo, both six-candidate previews, read-only demo verification, and `git diff --check` passed; current-head Windows workflow run `29804884544` passed. No native candidate, Sol, or Pages deployment ran.
+- Phase 5 audit repairs - `typecheck`, `build`, 71 tests, both fixture checks, scheduler typecheck/test, TAP-backed `scheduler:baseline-contract`, offline demo, read-only demo verification, clean worktree verification, flagship preview, route doctor, and `git diff --check` passed. Windows workflow run `29848817216` passed for repair code head `390224ac5979636e496717b554f9d05e35d0345f`. No native candidate, Sol, credential creation, or Pages deployment ran.
 - Final human Phase 4.5 proof - the six-candidate Low adjudication completed with accepted `RECOMMENDATION` for `codex-luna-high`; eligible candidates ranked `codex-luna-high`, `opencode-luna-high`, and `opencode-luna-medium`, while the remaining candidates were excluded by deterministic allowed-path gates. Report generation passed and `arena verify` returned `VERIFIED`. The malformed response's duplicate lower ranks `1,2,2` were repaired to unique sequential ranks `1,2,3`; no Sol High run was performed.
 
 ## Historical evidence
@@ -105,7 +106,10 @@ Phase 3 closeout implementation reference:
 
 ## Next bounded step
 
-PR #4 is merged. PR #5 has passed its final human proof and remains unmerged. The scheduler flagship fixture/trial is prepared but unexecuted; its `REPLACE_*` provider/model/variant values and immutable baseline remain unresolved human Phase 5 work. Sol High has not been invoked. Phase 5 implementation has not begun.
+PR #4 and PR #5 are merged. The scheduler flagship fixture/trial is prepared but unexecuted; its repository and native-variant `REPLACE_*` values remain human Phase 5 work. The final immutable fixture baseline is `8dda0e4068a8b7fb27793cfbab6947076ec24e7f`, but the human must create and push its tag. OpenCode variants remain declared-unverified until bounded diagnostics confirm them. Sol High has not been invoked. Phase 5 implementation is ready for audit, not for the native flagship run.
 
 PHASE_4_5_GATE: PASS
-PHASE_5_READY: YES_AFTER_MERGE
+PHASE_5_READY: READY_FOR_AUDIT
+PHASE_5_IMPLEMENTATION_GATE: READY_FOR_AUDIT
+PHASE_5_NATIVE_RUN_READY: NO
+PHASE_6_READY: NO

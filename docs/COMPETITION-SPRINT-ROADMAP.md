@@ -1233,6 +1233,10 @@ The final Phase 4.5 repair adds identity-safe judge-response diagnostics and pre
 
 Make the project installable and credible.
 
+### Current implementation status
+
+PR #5 merged at `c9baa1fa22331325f5bdd17aa87c7224eca0af3f`. Phase 5 deterministic reproducibility stabilization freezes the scheduler acceptance contract, adds candidate-aware route doctoring and safe OpenCode configuration composition, verifies the offline path from a temporary worktree, and prepares source-preserving sample sanitation. The implementation is ready for audit after Windows CI run `29843017392`; it does not execute the flagship candidates, Sol, or Pages deployment.
+
 ### Required work
 
 1. Test from a clean clone.

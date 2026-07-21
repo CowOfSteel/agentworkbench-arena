@@ -3,38 +3,90 @@ const test = require("node:test");
 const { TaskScheduler } = require("../dist/src/scheduler.js");
 
 const deferred = () => { let resolve, reject; const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; }); return { promise, resolve, reject }; };
+const settled = async (promise) => promise.then((value) => ({ status: "fulfilled", value }), (reason) => ({ status: "rejected", reason }));
+const until = async (condition, message) => {
+  for (let turn = 0; turn < 64; turn++) {
+    if (condition()) return;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.fail(message);
+};
 
 test("canonical scheduler acceptance: FIFO and concurrency never exceed the limit", async () => {
   const scheduler = new TaskScheduler({ concurrency: 2, maxAttempts: 1 });
   const first = deferred(), second = deferred(), third = deferred(), started = [], active = { value: 0, maximum: 0 };
-  const task = (id, hold) => scheduler.schedule(id, async () => { started.push(id); active.maximum = Math.max(active.maximum, ++active.value); await hold.promise; active.value--; return id; });
+  const task = (id, hold) => scheduler.schedule(id, async () => { started.push(id); active.maximum = Math.max(active.maximum, ++active.value); try { await hold.promise; return id; } finally { active.value--; } });
   const a = task("a", first), b = task("b", second), c = task("c", third);
+  await until(() => started.length === 2, "expected the first two FIFO tasks to start");
   assert.deepEqual(started, ["a", "b"]);
   assert.equal(active.maximum, 2);
-  first.resolve(); second.resolve();
-  await Promise.all([a, b]); third.resolve();
-  await c;
-  assert.deepEqual(started, ["a", "b", "c"]);
+  first.resolve(); await a; await until(() => started.length === 3, "expected the queued FIFO task to start");
+  assert.deepEqual([...started], ["a", "b", "c"]);
+  second.resolve(); third.resolve();
+  await Promise.all([b, c]);
+  assert.deepEqual([...started], ["a", "b", "c"]);
+  assert.equal(active.maximum, 2);
 });
 
-test("canonical scheduler acceptance: duplicate IDs and queued/running cancellation", async () => {
+test("canonical scheduler acceptance: duplicate IDs, cancellation, and terminal ID reuse", async () => {
   const scheduler = new TaskScheduler({ concurrency: 1, maxAttempts: 2 });
-  const running = deferred(), calls = [];
-  const first = scheduler.schedule("same", async ({ signal, attempt }) => { calls.push([attempt, signal.aborted]); return running.promise; });
-  await assert.rejects(scheduler.schedule("same", async () => 2), /duplicate/i);
-  assert.equal(scheduler.cancel("same"), true);
-  assert.equal(calls[0][1], true);
+  const running = deferred(), signals = [], attempts = [];
+  const first = scheduler.schedule("same", async ({ signal, attempt }) => { signals.push(signal); attempts.push(attempt); return running.promise; });
+  await until(() => signals.length === 1, "expected the running task to receive its AbortSignal");
+  const duplicate = scheduler.schedule("same", async () => 2);
+  const cancelledRunning = scheduler.cancel("same");
+  const aborted = signals[0]?.aborted;
   running.reject(new Error("aborted"));
-  await assert.rejects(first, /aborted/);
-  let queuedRan = false;
-  const blocker = deferred(), queued = scheduler.schedule("blocker", async () => blocker.promise), cancelled = scheduler.schedule("queued", async () => { queuedRan = true; return 1; });
-  assert.equal(scheduler.cancel("queued"), true); blocker.resolve(); await queued; await assert.rejects(cancelled, /cancel/i); assert.equal(queuedRan, false);
+  const [firstResult, duplicateResult] = await Promise.all([settled(first), settled(duplicate)]);
+  const reused = await scheduler.schedule("same", async () => "reused");
+
+  const blocker = deferred(); let queuedRan = false;
+  const queuedBlocker = scheduler.schedule("blocker", async () => blocker.promise);
+  const queued = scheduler.schedule("queued", async () => { queuedRan = true; return 1; });
+  const cancelledQueued = scheduler.cancel("queued");
+  blocker.resolve();
+  const queuedResult = await settled(queued);
+  await queuedBlocker;
+  await scheduler.drain();
+  assert.equal(cancelledRunning, true);
+  assert.equal(aborted, true);
+  assert.equal(firstResult.status, "rejected");
+  assert.equal(duplicateResult.status, "rejected");
+  assert.deepEqual(attempts, [1]);
+  assert.equal(reused, "reused");
+  assert.equal(cancelledQueued, true);
+  assert.equal(queuedResult.status, "rejected");
+  assert.equal(queuedRan, false);
 });
 
 test("canonical scheduler acceptance: retries, drain, and final errors are deterministic", async () => {
-  const scheduler = new TaskScheduler({ concurrency: 1, maxAttempts: 2 });
-  let attempts = 0;
-  await assert.rejects(scheduler.schedule("retry", async ({ attempt }) => { attempts = attempt; throw new Error("final"); }), /final/);
-  assert.equal(attempts, 2);
+  const scheduler = new TaskScheduler({ concurrency: 2, maxAttempts: 2 });
+  const blocker = deferred(), retryGate = deferred(), starts = [], active = { value: 0, maximum: 0 };
+  const hold = scheduler.schedule("hold", async () => { active.maximum = Math.max(active.maximum, ++active.value); try { return await blocker.promise; } finally { active.value--; } });
+  let retryAttempts = 0;
+  const retry = scheduler.schedule("retry", async ({ attempt }) => {
+    starts.push(attempt); active.maximum = Math.max(active.maximum, ++active.value);
+    try { retryAttempts = attempt; if (attempt === 1) throw new Error("retry once"); return await retryGate.promise; } finally { active.value--; }
+  });
+  const retryResult = settled(retry);
+  const drain = scheduler.drain();
+  let drained = false; void drain.then(() => { drained = true; });
+  await until(() => starts.includes(2), "expected a bounded retry attempt to start");
+  assert.equal(drained, false);
+  retryGate.resolve("retried");
+  const retryOutcome = await retryResult;
+  blocker.resolve("held"); await hold; await drain;
+
+  let finalAttempts = 0;
+  const final = scheduler.schedule("final", async ({ attempt }) => { finalAttempts = attempt; throw new Error("final task error"); });
+  const finalResult = await settled(final);
   await scheduler.drain();
+  assert.equal(retryOutcome.status, "fulfilled");
+  assert.deepEqual(starts, [1, 2]);
+  assert.equal(retryAttempts, 2);
+  assert.equal(active.maximum, 2);
+  assert.equal(drained, true);
+  assert.equal(finalResult.status, "rejected");
+  assert.match(String(finalResult.reason), /final task error/);
+  assert.equal(finalAttempts, 2);
 });

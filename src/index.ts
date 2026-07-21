@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { CandidateAdapter, CodexExecAdapter, OpenCodeRunAdapter } from "./adapters";
 import { adjudicationDryRun, adjudicateRun, CodexJudgeAdapter, defaultJudgeConfig } from "./adjudication";
 import { runDiagnostic, runTrial } from "./runner";
@@ -7,6 +8,8 @@ import { resolve } from "node:path";
 import { calibrate } from "./calibrate";
 import { previewTrial, renderTrialPreview } from "./preview";
 import { trialTemplate, writeTrialTemplate } from "./templates";
+import { doctorTrial } from "./doctor";
+import { sanitizeSample } from "./sanitize";
 
 const usage = `AgentWorkbench Arena — repository-specific coding-agent configuration calibration
 
@@ -22,6 +25,7 @@ Usage:
   arena adjudicate <run-directory> [--dry-run] [--reasoning low|high]
   arena report <run-directory>
   arena verify <run-directory>
+  arena sanitize-sample <verified-run-directory> <output-directory>
   arena demo
 
 Start with the public sample (arena demo), then init, preview, and calibrate.
@@ -92,6 +96,13 @@ export async function main(args: string[] = process.argv.slice(2), dependencies:
     return result.status === "VERIFIED" ? 0 : 1;
   }
 
+  if (args[0] === "sanitize-sample") {
+    if (!args[1] || !args[2] || args[3]) throw new Error("usage: arena sanitize-sample <verified-run-directory> <output-directory>");
+    const result = await sanitizeSample(args[1], args[2]);
+    console.log(JSON.stringify({ directory: result.directory, report: result.report, recommendation: result.recommendation }, null, 2));
+    return 0;
+  }
+
   if (args[0] === "demo") {
     if (args[1]) throw new Error("usage: arena demo");
     const directory = resolve(__dirname, "..", "..", "examples", "demo-run"), result = await generateReport(directory);
@@ -106,10 +117,9 @@ export async function main(args: string[] = process.argv.slice(2), dependencies:
       ["opencode-run", new OpenCodeRunAdapter()]
     ]);
     if (args[0] === "doctor") {
-      const required = new Set<string>(trial.candidates.map((candidate) => candidate.adapter));
-      const checks = await Promise.all([...adapters.entries()].map(async ([id, adapter]) => ({ id, result: await adapter.doctor(trial.candidates.find((candidate) => candidate.adapter === id)) })));
-      console.log(JSON.stringify({ trial_id: trial.id, candidate_count: trial.candidates.length, adapters: checks.map(({ result }) => result) }, null, 2));
-      return checks.every(({ id, result }) => !required.has(id) || result.ok) ? 0 : 1;
+      const result = await doctorTrial(trial, adapters);
+      console.log(JSON.stringify(result, null, 2));
+      return result.readiness === "ready" ? 0 : 1;
     }
     if (args[0] === "diagnose" || args[0] === "diagnostic") {
       if (!args[2] || args[3]) throw new Error("usage: arena diagnose <trial.yml> <candidate-id>");
