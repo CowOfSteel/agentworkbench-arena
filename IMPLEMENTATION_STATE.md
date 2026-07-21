@@ -6,6 +6,8 @@ Phase 4 static reporting and its bounded audit repair are complete. PR #4 merged
 
 Phase 4.5 product experience is complete on `phase4-5/product-experience`. Its canonical calibration workflow, templates, preview, topology, presentation lenses, coverage, verification, and Pages staging remain bounded around the completed Phase 1–4 pipeline and add no new evidence or semantic authority. The final repair records identity-safe judge-validation diagnostics, uses a bounded candidate-count-aware response ceiling, preserves one structural repair, and prepares (without executing) the separate concurrency-scheduler Phase 5 fixture/trial. Explicit display/native/provider-route provenance remains backward-compatible, and configured canonical acceptance commands preserve the historical fractional-price path when omitted. Local verification and current-head Windows CI run `29804884544` passed. `PHASE_4_5_GATE: READY_FOR_FINAL_HUMAN_PROOF`; Phase 5 has not begun and `PHASE_5_READY: NO`.
 
+Final Phase 4.5 current-head verification supersedes earlier implementation-run references: Windows CI run `29805096677` passed for this documented repair state.
+
 Phase 3 masked semantic adjudication is complete. Its deterministic suite and Windows CI passed, and the bounded authenticated Sol Low retry-2 proof produced a validated `RECOMMENDATION`. The Phase 1 native feasibility gate remains `PASS` in `LIVE_MODE`; Phase 2 deterministic evidence remains authoritative. Sol High remains reserved for later stabilization.
 
 Phase 3 closeout implementation reference:
