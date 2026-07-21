@@ -27,6 +27,7 @@ Usage:
 Start with the public sample (arena demo), then init, preview, and calibrate.
 Stage-specific commands remain available for advanced debugging.
 Reports and verify consume completed artifacts only and never invoke candidate or judge adapters.
+Square brackets in this usage describe optional arguments; do not type the brackets literally.
 `;
 
 function reasoningArgument(args: string[], command: string): "low" | "high" {

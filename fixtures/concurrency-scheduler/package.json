@@ -1,0 +1,5 @@
+{
+  "name": "concurrency-scheduler-fixture",
+  "private": true,
+  "description": "Dependency-free Phase 5 scheduler stabilization fixture."
+}

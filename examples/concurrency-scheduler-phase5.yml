@@ -1,0 +1,104 @@
+# Phase 5 preparation only. Replace every REPLACE_* value, run preview, then
+# perform the documented bounded route diagnostics before any human-run trial.
+id: phase5-concurrency-scheduler
+repository: REPLACE_REPOSITORY
+baseline_ref: REPLACE_CONCURRENCY_SCHEDULER_BASELINE
+task_contract: >-
+  Implement the concurrency-limited TaskScheduler while preserving its class API.
+  Enforce the configured concurrency limit and FIFO ready-task ordering; reject
+  duplicate active IDs; support queued and cooperative running cancellation;
+  retry no more than maxAttempts without exceeding concurrency; drain only when
+  work is complete; propagate final task errors; add no dependencies or network access.
+allowed_paths:
+  - fixtures/concurrency-scheduler/src
+  - fixtures/concurrency-scheduler/tests
+forbidden_paths:
+  - fixtures/concurrency-scheduler/acceptance
+  - fixtures/concurrency-scheduler/package.json
+  - package.json
+  - package-lock.json
+  - src
+  - examples
+validation_commands:
+  - [npm, run, scheduler:typecheck]
+  - [npm, run, scheduler:test]
+acceptance_command: [npm, run, scheduler:acceptance]
+validation_timeout_ms: 180000
+dependency_policy: no_changes
+timeout_ms: 900000
+retry_policy:
+  max_launch_transport_retries: 1
+manual_intervention: forbidden
+provenance:
+  phase: 5-preparation
+  fixture: concurrency-scheduler
+candidates:
+  - id: sol-medium-codex
+    adapter: codex-exec
+    harness: codex
+    provider: openai
+    model: gpt-5.6-sol
+    display_name: Sol Medium via Codex
+    display_variant: Medium
+    native_reasoning_effort: medium
+    provider_route: codex-authenticated
+    permission_policy: workspace-write
+    tool_provenance: { explicitly_enabled: [] }
+  - id: terra-high-codex
+    adapter: codex-exec
+    harness: codex
+    provider: openai
+    model: gpt-5.6-terra
+    display_name: Terra High via Codex
+    display_variant: High
+    native_reasoning_effort: high
+    provider_route: codex-authenticated
+    permission_policy: workspace-write
+    tool_provenance: { explicitly_enabled: [] }
+  - id: luna-extra-high-codex
+    adapter: codex-exec
+    harness: codex
+    provider: openai
+    model: gpt-5.6-luna
+    display_name: Luna Extra High via Codex
+    display_variant: Extra High
+    native_reasoning_effort: xhigh
+    provider_route: codex-authenticated
+    permission_policy: workspace-write
+    tool_provenance: { explicitly_enabled: [] }
+  - id: terra-high-opencode-openai
+    adapter: opencode-run
+    harness: opencode
+    provider: REPLACE_OPENCODE_OPENAI_PROVIDER_ID
+    model: gpt-5.6-terra
+    display_name: Terra High via OpenCode OpenAI API
+    display_variant: High
+    native_reasoning_effort: high
+    provider_route: opencode-openai-api
+    adapter_options: { native_variant: REPLACE_OPENCODE_OPENAI_HIGH_VARIANT }
+    permission_policy: configured-build-agent
+    tool_provenance: { explicitly_enabled: [] }
+  - id: deepseek-v4-flash-max-opencode-go
+    adapter: opencode-run
+    harness: opencode
+    provider: REPLACE_OPENCODE_GO_DEEPSEEK_PROVIDER_ID
+    model: REPLACE_OPENCODE_GO_DEEPSEEK_V4_FLASH_MODEL_ID
+    display_name: DeepSeek V4 Flash Max via OpenCode Go
+    display_variant: Max
+    native_reasoning_effort: max
+    provider_route: opencode-go-deepseek
+    adapter_options: { native_variant: REPLACE_OPENCODE_GO_DEEPSEEK_MAX_VARIANT }
+    permission_policy: configured-build-agent
+    tool_provenance: { explicitly_enabled: [] }
+  - id: deepseek-v4-flash-max-opencode-direct
+    adapter: opencode-run
+    harness: opencode
+    provider: REPLACE_OPENCODE_DIRECT_DEEPSEEK_PROVIDER_ID
+    model: deepseek-v4-flash
+    display_name: DeepSeek V4 Flash Max via OpenCode direct DeepSeek API
+    display_variant: Max
+    native_reasoning_effort: max
+    provider_route: opencode-direct-deepseek-api
+    adapter_options: { native_variant: REPLACE_OPENCODE_DIRECT_DEEPSEEK_MAX_VARIANT }
+    permission_policy: configured-build-agent
+    tool_provenance: { explicitly_enabled: [] }

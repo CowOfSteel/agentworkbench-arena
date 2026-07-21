@@ -10,13 +10,15 @@ Phase 3 implementation, deterministic tests, Windows CI, and the bounded authent
 
 1. View the public sample after GitHub Pages is enabled: <https://cowofsteel.github.io/agentworkbench-arena/>.
 2. Regenerate that same sanitized sample offline: `npm run demo`.
-3. Create a safe starting trial: `npm start -- init attention-sweep`.
-4. Inspect it offline: `npm start -- preview trial.yml`.
+3. Create a safe starting trial: `npm start -- init attention-sweep attention-sweep.yml`.
+4. Inspect it offline: `npm start -- preview attention-sweep.yml`.
 5. Run the complete workflow when native prerequisites are deliberately available: `npm start -- calibrate trial.yml --reasoning low`.
 
 `arena calibrate` is the canonical one-command workflow. It preserves each stage’s artifacts and produces one final JSON summary. Existing commands remain available for advanced debugging.
 
 ## Commands
+
+Repository-local commands use `npm start -- …`. `npm run build`, `npm link`, and then `arena --help` are optional developer conveniences, not a judge requirement. Square brackets in CLI usage mean an optional argument and are not typed literally.
 
 ```text
 npm install
@@ -86,6 +88,18 @@ The report’s topology is structural analysis, not statistical causal inference
 The committed bounded two-candidate proof is also the public sample path. After merge, enable **Settings → Pages → GitHub Actions** in GitHub; the workflow deploys only sanitized allowlisted evidence from `examples/demo-run/`, never pull-request artifacts. Phase 5 may replace this proof with a final six-candidate stabilization sample. See [Phase 4.5 product experience](docs/PHASE4_5-PRODUCT-EXPERIENCE.md).
 
 ## Phase boundaries
+
+## Phase 5 trial preparation (not executed)
+
+[`examples/concurrency-scheduler-phase5.yml`](examples/concurrency-scheduler-phase5.yml) is a deliberately blocked six-candidate stabilization template for the dependency-free [`fixtures/concurrency-scheduler/`](fixtures/concurrency-scheduler/) task. It uses explicit display metadata, provider route, native reasoning effort, and OpenCode native variant fields. `attention` remains legacy normalized data; new trials should prefer the explicit native fields.
+
+OpenAI GPT-5.6 native efforts are `none`, `low`, `medium`, `high`, `xhigh`, and `max`. DeepSeek V4 efforts are `high` and `max`; for the explicit DeepSeek routes Arena records `low`/`medium` → `high` and `xhigh` → `max` as documented compatibility, rather than changing a harness argument. It records requested harness variant, effective provider effort, and evidence source separately.
+
+Before a human runs this template, resolve each `REPLACE_*` value and record installed Codex/OpenCode versions; `codex exec --help`; `opencode run --help`; `opencode models`; a credential-safe provider-configuration inspection; one bounded doctor/diagnostic per unique route; and a dry-run/argument-shape proof for every native effort. Create the immutable baseline only after selecting the commit:
+
+```text
+git tag -a phase5-concurrency-scheduler-baseline -m "Phase 5 scheduler baseline" <baseline-commit>
+```
 
 Phase 1 contains the fixture, YAML trial schema, Codex and OpenCode native adapters, sequential worktree runner, and raw evidence preservation. Candidate count is configuration data: the first trial has six candidates, while adding a seventh changes only the trial file.
 

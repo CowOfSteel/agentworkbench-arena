@@ -10,6 +10,13 @@ export interface Candidate {
   provider?: string;
   model: string;
   attention?: string;
+  /** Presentation-only labels; they are never causal topology dimensions. */
+  displayName?: string;
+  displayVariant?: string;
+  /** The provider effort Arena was asked to use, distinct from legacy attention. */
+  nativeReasoningEffort?: string;
+  /** Distinguishes materially different provider routes for the same model. */
+  providerRoute?: string;
   agent?: string;
   profile?: string;
   permissionPolicy?: string;
@@ -25,6 +32,7 @@ export interface Trial {
   allowedPaths: string[];
   forbiddenPaths: string[];
   validationCommands: string[][];
+  acceptanceCommand?: string[];
   validationTimeoutMs: number;
   dependencyPolicy: "no_changes" | "allow_changes";
   timeoutMs: number;
@@ -63,6 +71,8 @@ export function validateTrial(value: unknown): Trial {
   if (!Array.isArray(commands) || commands.length === 0 || commands.some((command) => !Array.isArray(command) || command.some((part) => typeof part !== "string") || command.length === 0)) {
     throw new Error("validation_commands must be a non-empty list of argument lists");
   }
+  const acceptanceCommand = raw.acceptance_command === undefined ? undefined : strings(raw.acceptance_command, "acceptance_command");
+  if (acceptanceCommand && acceptanceCommand.length === 0) throw new Error("acceptance_command must be a non-empty argument list");
   const retry = object(raw.retry_policy, "retry_policy");
   const candidates = raw.candidates;
   if (!Array.isArray(candidates) || candidates.length < 2) throw new Error("candidates must contain at least two entries");
@@ -79,6 +89,10 @@ export function validateTrial(value: unknown): Trial {
       provider: candidate.provider === undefined ? undefined : text(candidate.provider, `candidates[${index}].provider`),
       model: text(candidate.model, `candidates[${index}].model`),
       attention: candidate.attention === undefined ? undefined : text(candidate.attention, `candidates[${index}].attention`),
+      displayName: candidate.display_name === undefined ? undefined : text(candidate.display_name, `candidates[${index}].display_name`),
+      displayVariant: candidate.display_variant === undefined ? undefined : text(candidate.display_variant, `candidates[${index}].display_variant`),
+      nativeReasoningEffort: candidate.native_reasoning_effort === undefined ? undefined : text(candidate.native_reasoning_effort, `candidates[${index}].native_reasoning_effort`),
+      providerRoute: candidate.provider_route === undefined ? undefined : text(candidate.provider_route, `candidates[${index}].provider_route`),
       agent: candidate.agent === undefined ? undefined : text(candidate.agent, `candidates[${index}].agent`),
       profile: candidate.profile === undefined ? undefined : text(candidate.profile, `candidates[${index}].profile`),
       permissionPolicy: candidate.permission_policy === undefined ? undefined : text(candidate.permission_policy, `candidates[${index}].permission_policy`),
@@ -90,6 +104,16 @@ export function validateTrial(value: unknown): Trial {
     const executable = candidate.adapterOptions?.codex_executable;
     if (executable !== undefined && (candidate.adapter !== "codex-exec" || typeof executable !== "string" || !executable.trim())) {
       throw new Error(`candidates[${index}].adapter_options.codex_executable must be a non-empty string for codex-exec`);
+    }
+    const nativeVariant = candidate.adapterOptions?.native_variant;
+    if (nativeVariant !== undefined && (candidate.adapter !== "opencode-run" || typeof nativeVariant !== "string" || !nativeVariant.trim())) {
+      throw new Error(`candidates[${index}].adapter_options.native_variant must be a non-empty string for opencode-run`);
+    }
+    const overrides = candidate.adapterOptions?.config_overrides;
+    if (overrides !== undefined && (!overrides || typeof overrides !== "object" || Array.isArray(overrides))) throw new Error(`candidates[${index}].adapter_options.config_overrides must be a mapping`);
+    const legacyEffort = (overrides as Record<string, unknown> | undefined)?.model_reasoning_effort;
+    if (candidate.adapter === "codex-exec" && candidate.nativeReasoningEffort && legacyEffort !== undefined && legacyEffort !== candidate.nativeReasoningEffort) {
+      throw new Error(`candidates[${index}] native_reasoning_effort conflicts with config_overrides.model_reasoning_effort`);
     }
   }
   const normalizedCandidateIds = parsedCandidates.map((candidate) => candidate.id.toLowerCase());
@@ -106,7 +130,7 @@ export function validateTrial(value: unknown): Trial {
   return {
     id: slug(raw.id, "id"), repository: text(raw.repository, "repository"), baselineRef: text(raw.baseline_ref, "baseline_ref"),
     taskContract: text(raw.task_contract, "task_contract"), allowedPaths: strings(raw.allowed_paths, "allowed_paths"),
-    forbiddenPaths: strings(raw.forbidden_paths, "forbidden_paths"), validationCommands: commands as string[][],
+    forbiddenPaths: strings(raw.forbidden_paths, "forbidden_paths"), validationCommands: commands as string[][], acceptanceCommand,
     timeoutMs, validationTimeoutMs, dependencyPolicy, maxLaunchTransportRetries: retries, manualIntervention: "forbidden",
     provenance: object(raw.provenance, "provenance"), candidates: parsedCandidates
   };

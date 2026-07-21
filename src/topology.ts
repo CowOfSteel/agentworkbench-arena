@@ -1,6 +1,6 @@
 import { Candidate, Trial } from "./trial";
 
-export const topologyDimensions = ["adapter", "harness", "provider", "model", "attention", "agent", "profile", "permission_policy", "declared_tools_plugins"] as const;
+export const topologyDimensions = ["adapter", "harness", "provider", "provider_route", "model", "attention", "native_reasoning_effort", "native_variant", "agent", "profile", "permission_policy", "declared_tools_plugins"] as const;
 export type TopologyDimension = typeof topologyDimensions[number];
 export type TopologyValues = Partial<Record<TopologyDimension, unknown>>;
 export interface TopologyCandidate { id: string; dimensions: TopologyValues; }
@@ -8,6 +8,7 @@ export interface TopologyGroup { dimension: TopologyDimension; candidates: strin
 export interface TopologyPair { candidates: [string, string]; differing_dimensions: TopologyDimension[]; }
 export interface ComparisonTopology {
   candidate_count: number;
+  distinct_configuration_count: number;
   held_constant_dimensions: TopologyDimension[];
   varied_dimensions: Array<{ dimension: TopologyDimension; values: unknown[]; incomplete: boolean }>;
   controlled_sweeps: TopologyGroup[];
@@ -25,8 +26,12 @@ const values = (input: unknown): string[] | undefined => Array.isArray(input) &&
 const normalizedCandidate = (candidate: Candidate): TopologyCandidate => ({
   id: candidate.id,
   dimensions: {
-    adapter: candidate.adapter, harness: candidate.harness, provider: candidate.provider ?? null, model: candidate.model,
-    attention: candidate.attention ?? null, agent: candidate.agent ?? null, profile: candidate.profile ?? null,
+    adapter: candidate.adapter, harness: candidate.harness, provider: candidate.provider ?? null, provider_route: candidate.providerRoute ?? null, model: candidate.model,
+    // Native configuration is the structural fact; legacy attention stays only for old trials.
+    attention: candidate.nativeReasoningEffort ? null : candidate.attention ?? null,
+    native_reasoning_effort: candidate.nativeReasoningEffort ?? null,
+    native_variant: typeof candidate.adapterOptions?.native_variant === "string" ? candidate.adapterOptions.native_variant : null,
+    agent: candidate.agent ?? null, profile: candidate.profile ?? null,
     permission_policy: candidate.permissionPolicy ?? null, declared_tools_plugins: values(candidate.toolProvenance?.explicitly_enabled) ?? []
   }
 });
@@ -34,7 +39,7 @@ const normalizedCandidate = (candidate: Candidate): TopologyCandidate => ({
 export function topologyFromTrial(trial: Trial): ComparisonTopology { return analyzeTopology(trial.candidates.map(normalizedCandidate)); }
 
 export function analyzeTopology(input: TopologyCandidate[]): ComparisonTopology {
-  const candidates = [...input].map((candidate) => ({ ...candidate, dimensions: { ...candidate.dimensions } })).sort((left, right) => left.id.localeCompare(right.id));
+  const candidates = [...input].map((candidate) => ({ ...candidate, dimensions: Object.fromEntries(topologyDimensions.map((dimension) => [dimension, candidate.dimensions[dimension] ?? null])) as TopologyValues })).sort((left, right) => left.id.localeCompare(right.id));
   const held_constant_dimensions = topologyDimensions.filter((dimension) => candidates.length > 0 && candidates.every((candidate) => candidate.dimensions[dimension] !== undefined) && new Set(candidates.map((candidate) => canonical(candidate.dimensions[dimension]))).size === 1);
   const varied_dimensions = topologyDimensions.flatMap((dimension) => {
     const known = candidates.map((candidate) => candidate.dimensions[dimension]).filter((value) => value !== undefined), distinct = [...new Map(known.map((value) => [canonical(value), value])).values()];
@@ -66,5 +71,5 @@ export function analyzeTopology(input: TopologyCandidate[]): ComparisonTopology 
   multi_variable_pairs.push(...allPairs.slice(0, 24));
   const supported_structural_claims = controlled_sweeps.map((group) => `${group.candidates.join(", ")} differ only in ${group.dimension}.`);
   const unsupported_causal_claims = ["Topology is structural analysis only; it does not establish causal effects.", ...(allPairs.length ? ["Multi-variable comparisons cannot support a single-dimension causal claim."] : []), ...(uncomparable_pair_count ? ["Some pairs lack complete configuration provenance and are not structurally comparable."] : [])];
-  return { candidate_count: candidates.length, held_constant_dimensions, varied_dimensions, controlled_sweeps, duplicate_configuration_groups, multi_variable_pair_count: allPairs.length, multi_variable_pairs, multi_variable_pairs_truncated: allPairs.length > multi_variable_pairs.length, uncomparable_pair_count, supported_structural_claims, unsupported_causal_claims };
+  return { candidate_count: candidates.length, distinct_configuration_count: duplicates.size, held_constant_dimensions, varied_dimensions, controlled_sweeps, duplicate_configuration_groups, multi_variable_pair_count: allPairs.length, multi_variable_pairs, multi_variable_pairs_truncated: allPairs.length > multi_variable_pairs.length, uncomparable_pair_count, supported_structural_claims, unsupported_causal_claims };
 }

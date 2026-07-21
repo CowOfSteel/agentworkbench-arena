@@ -94,13 +94,44 @@ const sanitizedOptions = (candidate: Candidate): Record<string, unknown> => {
   return Object.fromEntries(Object.entries(overrides).filter(([key]) => !/token|secret|password|credential|key/i.test(key)));
 };
 
+const deepSeekRoutes = new Set(["opencode-go-deepseek", "opencode-direct-deepseek-api"]);
+const deepSeekEffort = (value: string): string => ({ low: "high", medium: "high", xhigh: "max" }[value] ?? value);
+
+export interface ReasoningProvenance {
+  requested_harness_variant: string | null;
+  native_reasoning_effort: string | null;
+  effective_provider_reasoning_effort: string | null;
+  evidence_source: string;
+}
+
+/** Records declared configuration and documented compatibility only; it never claims live observation. */
+export function reasoningProvenance(candidate: Candidate): ReasoningProvenance {
+  const requested = typeof candidate.adapterOptions?.native_variant === "string" ? candidate.adapterOptions.native_variant : candidate.attention ?? null;
+  const declared = candidate.nativeReasoningEffort ?? null;
+  const basis = declared ?? requested;
+  if (basis && candidate.providerRoute && deepSeekRoutes.has(candidate.providerRoute)) {
+    const effective = deepSeekEffort(basis);
+    return { requested_harness_variant: requested, native_reasoning_effort: declared, effective_provider_reasoning_effort: effective, evidence_source: effective === basis ? "declared_provider_configuration" : "documented_deepseek_compatibility_mapping" };
+  }
+  return { requested_harness_variant: requested, native_reasoning_effort: declared, effective_provider_reasoning_effort: declared, evidence_source: declared ? "declared_provider_configuration" : requested ? "legacy_normalized_attention" : "unavailable" };
+}
+
+export function candidateConfiguration(candidate: Candidate): Record<string, unknown> {
+  return {
+    display_name: candidate.displayName ?? null, display_variant: candidate.displayVariant ?? null,
+    native_reasoning_effort: candidate.nativeReasoningEffort ?? null, provider_route: candidate.providerRoute ?? null,
+    native_variant: typeof candidate.adapterOptions?.native_variant === "string" ? candidate.adapterOptions.native_variant : null,
+    reasoning: reasoningProvenance(candidate)
+  };
+}
+
 export function configurationHash(candidate: Candidate, trial: Trial): string {
   const declaredTools = Array.isArray(candidate.toolProvenance?.explicitly_enabled) ? [...candidate.toolProvenance.explicitly_enabled].map(String).sort() : [];
-  return createHash("sha256").update(canonicalJson({ adapter: candidate.adapter, harness: candidate.harness, provider: candidate.provider ?? null, model: candidate.model, attention: candidate.attention ?? null, agent: candidate.agent ?? null, profile: candidate.profile ?? null, permission_policy: candidate.permissionPolicy ?? null, declared_tools: declaredTools, config_overrides: sanitizedOptions(candidate), execution_limits: { timeout_ms: trial.timeoutMs, validation_timeout_ms: trial.validationTimeoutMs, retry_limit: trial.maxLaunchTransportRetries, manual_intervention: trial.manualIntervention } })).digest("hex");
+  return createHash("sha256").update(canonicalJson({ adapter: candidate.adapter, harness: candidate.harness, provider: candidate.provider ?? null, model: candidate.model, attention: candidate.attention ?? null, agent: candidate.agent ?? null, profile: candidate.profile ?? null, permission_policy: candidate.permissionPolicy ?? null, declared_tools: declaredTools, config_overrides: sanitizedOptions(candidate), ...candidateConfiguration(candidate), execution_limits: { timeout_ms: trial.timeoutMs, validation_timeout_ms: trial.validationTimeoutMs, retry_limit: trial.maxLaunchTransportRetries, manual_intervention: trial.manualIntervention } })).digest("hex");
 }
 
 export function trialSnapshot(trial: Trial): Record<string, unknown> {
-  return { schema_version: telemetrySchemaVersion, trial_id: trial.id, task_contract_hash: createHash("sha256").update(trial.taskContract).digest("hex"), allowed_paths: [...trial.allowedPaths].sort(), forbidden_paths: [...trial.forbiddenPaths].sort(), validation_commands: trial.validationCommands, timeout_ms: trial.timeoutMs, validation_timeout_ms: trial.validationTimeoutMs, dependency_policy: trial.dependencyPolicy, retry_limit: trial.maxLaunchTransportRetries, manual_intervention: trial.manualIntervention, candidates: trial.candidates.map((candidate) => ({ id: candidate.id, configuration_hash: configurationHash(candidate, trial) })) };
+  return { schema_version: telemetrySchemaVersion, trial_id: trial.id, task_contract_hash: createHash("sha256").update(trial.taskContract).digest("hex"), allowed_paths: [...trial.allowedPaths].sort(), forbidden_paths: [...trial.forbiddenPaths].sort(), validation_commands: trial.validationCommands, acceptance_command: trial.acceptanceCommand ?? null, timeout_ms: trial.timeoutMs, validation_timeout_ms: trial.validationTimeoutMs, dependency_policy: trial.dependencyPolicy, retry_limit: trial.maxLaunchTransportRetries, manual_intervention: trial.manualIntervention, candidates: trial.candidates.map((candidate) => ({ id: candidate.id, configuration_hash: configurationHash(candidate, trial), ...candidateConfiguration(candidate) })) };
 }
 
 const unsafeTaskText = (value: string): boolean => /(?:[A-Za-z]:[\\/]|\\\\|file:\/\/|(?:^|[\s"'(])\/(?:Users|home|tmp|var|private|mnt|opt)\/|(?:token|password|secret|credential|api[_-]?key)\s*[:=]|(?:codex|opencode)_executable)/i.test(value);
@@ -115,6 +146,7 @@ export function taskContractArtifact(trial: Trial): Record<string, unknown> {
   return {
     schema_version: "1.0", task_contract_hash: createHash("sha256").update(trial.taskContract).digest("hex"), objective: trial.taskContract,
     instructions: [], acceptance_criteria: [], allowed_paths: [...trial.allowedPaths].sort(), forbidden_paths: [...trial.forbiddenPaths].sort(),
-    validation_commands: trial.validationCommands.map((command) => command.map(commandPart))
+    validation_commands: trial.validationCommands.map((command) => command.map(commandPart)),
+    acceptance_command: trial.acceptanceCommand?.map(commandPart) ?? null
   };
 }

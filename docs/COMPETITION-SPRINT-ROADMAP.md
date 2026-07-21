@@ -1223,6 +1223,8 @@ Topology is structural—not causal—analysis. Lenses never override `evaluatio
 
 See [`PHASE4_5-PRODUCT-EXPERIENCE.md`](PHASE4_5-PRODUCT-EXPERIENCE.md) for product behavior and the Pages enablement instructions.
 
+The final Phase 4.5 repair adds identity-safe judge-response diagnostics and prepares—without executing—the separate `fixtures/concurrency-scheduler/` Phase 5 stabilization trial. It does not alter Phase 5 or Phase 6 scope.
+
 ---
 
 ## Phase 5: Hardening and judge path

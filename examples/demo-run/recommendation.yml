@@ -15,6 +15,14 @@ ranking:
     eligibility: eligible
     hard_gate_status: passed
     source_completion_status: authentication
+    configuration:
+      display_name: null
+      display_variant: null
+      provider_route: null
+      native_reasoning_effort: null
+      native_variant: null
+      effective_provider_reasoning_effort: null
+      reasoning_evidence_source: null
     semantic_rank: 1
     semantic_tier: strong
     semantic_criteria:
@@ -151,6 +159,14 @@ ranking:
     eligibility: eligible
     hard_gate_status: passed
     source_completion_status: completed
+    configuration:
+      display_name: null
+      display_variant: null
+      provider_route: null
+      native_reasoning_effort: null
+      native_variant: null
+      effective_provider_reasoning_effort: null
+      reasoning_evidence_source: null
     semantic_rank: 2
     semantic_tier: strong
     semantic_criteria:
@@ -282,9 +298,13 @@ ranking:
       - candidates/opencode-luna-low/candidate.diff
 comparison_topology:
   candidate_count: 2
+  distinct_configuration_count: 2
   held_constant_dimensions:
+    - provider_route
     - model
     - attention
+    - native_reasoning_effort
+    - native_variant
     - profile
     - declared_tools_plugins
   varied_dimensions:

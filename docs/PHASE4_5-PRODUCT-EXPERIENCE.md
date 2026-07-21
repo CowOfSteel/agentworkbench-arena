@@ -10,7 +10,7 @@ Phase 4.5 is a bounded developer-product supplement to the completed Phase 1–4
 
 ## Structural comparison, not causation
 
-Topology describes only the allowlisted complete-configuration dimensions: adapter, harness, provider, model, attention, agent, profile, permission policy, and declared tools/plugins. A controlled sweep is reported only when all other known dimensions are equal. It is structural analysis, never statistical or causal inference. Decision lenses are equally informational: they do not score, rerank, or override `evaluation.json`.
+Topology describes only the allowlisted complete-configuration dimensions: adapter, harness, provider, provider route, model, legacy attention, explicit native reasoning effort, native variant, agent, profile, permission policy, and declared tools/plugins. Friendly display labels are excluded. A controlled sweep is reported only when all other known dimensions are equal. It is structural analysis, never statistical or causal inference. Decision lenses are equally informational: they do not score, rerank, or override `evaluation.json`.
 
 ## Presentation additions
 
@@ -21,3 +21,9 @@ The report and recommendation show topology, non-authoritative decision lenses, 
 `examples/demo-run/` remains a clearly labelled, sanitized two-candidate Sol Low proof. The Pages workflow prepares only this allowlisted sample on pushes to `main` or manual dispatch; it does not run on pull requests. After merge, enable **Settings → Pages → GitHub Actions**. The expected address is <https://cowofsteel.github.io/agentworkbench-arena/>. Phase 5 may replace the sample with a final six-candidate stabilization run.
 
 Phase 4.5 adds no GUI, server, database, adapter, judge profile, weighted score, automatic routing, Phase 5 hardening, or Phase 6 packaging.
+
+## Final repair and Phase 5 preparation
+
+Judge responses have a candidate-count-aware ceiling of `min(32000, 4000 + 2000 × opaque label count)`. Strict response failures retain identity-safe diagnostics (code, JSON path, expected structure, observed category, and character count); a repair receives those diagnostics only when its malformed original is safe to reuse. A recommendation has one rank-1 winner and unique sequential lower ranks; only a tie can share rank 1. One repair remains the maximum.
+
+The prepared scheduler fixture and six-candidate template are not a Phase 5 execution. The template remains intentionally blocked by provider/model/variant and baseline placeholders. Its canonical acceptance command is separate from candidate-editable tests, and optional `acceptance_command` support preserves the historical fractional-price validator when omitted.

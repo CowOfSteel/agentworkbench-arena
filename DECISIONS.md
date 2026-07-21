@@ -37,3 +37,7 @@
 35. `arena verify` is read-only: it validates finalized authority and detects stale derived outputs without invoking adapters, validation commands, or network calls.
 36. Trial templates contain no credentials, executable overrides, or machine-local paths. The public demo remains a clearly labelled bounded proof until Phase 5 replaces it with a final stabilization run.
 37. Phase 4.5 adds no GUI, server, database, new adapter, judge profile, weighted scoring, or automatic routing.
+38. Judge-response structural diagnostics are identity-safe local evidence; external safety errors remain generic, one structural repair remains the maximum, and a `RECOMMENDATION` requires unique sequential lower ranks.
+39. Explicit `display_name` and `display_variant` are presentation metadata. Native reasoning effort, native harness variant, and provider route are configuration identity/provenance facts; topology excludes the display fields and uses legacy attention only when explicit native reasoning is absent.
+40. DeepSeek compatibility mappings are recorded only for explicit DeepSeek provider routes (`low`/`medium` to `high`, `xhigh` to `max`) with a documented evidence source; Arena never silently translates a harness variant.
+41. The concurrency-scheduler fixture and six-candidate template are Phase 5 preparation only. Its canonical acceptance test directory is forbidden to candidates; omitted `acceptance_command` retains the historical fractional-price acceptance validator.
