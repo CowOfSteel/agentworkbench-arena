@@ -25,7 +25,7 @@ validation_commands:
 acceptance_command: [npm, run, scheduler:acceptance]
 diagnostic_probe:
   path: fixtures/concurrency-scheduler/src/arena-write-probe.txt
-  content: "phase5-diagnostic-probe\n"
+  content: "phase5-diagnostic-probe"
 validation_timeout_ms: 180000
 dependency_policy: no_changes
 timeout_ms: 900000

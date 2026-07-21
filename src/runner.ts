@@ -439,15 +439,16 @@ export async function runDiagnostic(trial: Trial, candidateId: string, adapters:
   const diagnosticTimeoutMs = effectiveDiagnosticTimeoutMs(trial);
   const diagnosticTrial = { ...trial, timeoutMs: diagnosticTimeoutMs };
   const result = await candidateRun(diagnosticTrial, candidate, repository, baseline, directory, adapter, { taskContract, validationCommands: [], acceptance: false });
+  const expectedProbeBytes = Buffer.from(probe.content, "utf8");
   const [marker, record, status] = await Promise.all([
-    readFile(join(result.directory, "worktree", ...probe.path.split("/")), "utf8").catch(() => undefined),
+    readFile(join(result.directory, "worktree", ...probe.path.split("/"))).then((value) => value.equals(expectedProbeBytes)).catch(() => false),
     readFile(join(result.directory, "execution.json"), "utf8").then((text) => JSON.parse(text) as { forbidden_path_changes: string[]; validation_side_effects: boolean }),
     readFile(join(result.directory, "pre-validation-status.json"), "utf8").then((text) => JSON.parse(text) as Pick<WorktreeStatus, "changed_paths" | "tracked_changes" | "untracked_paths" | "ignored_paths">)
   ]);
   const expectedPath = probe.path.replace(/\\/g, "/");
   const assessment = assessDiagnostic({
     execution: result.execution,
-    marker: marker === probe.content,
+    marker,
     expectedPath,
     observedPaths: [status.changed_paths, status.tracked_changes, status.untracked_paths, status.ignored_paths].flat(),
     forbiddenPathChanges: record.forbidden_path_changes,

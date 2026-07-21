@@ -47,6 +47,12 @@ test("six-label response ceiling stays bounded and the flagship remains intentio
   assert.throws(() => validateTrial({ ...flagship, diagnostic_probe: { path: "../unsafe", content: "no" } }), /safe relative/);
 });
 
+test("Phase 5 source template uses a newline-free canonical diagnostic probe", async () => {
+  const template = validateTrial(parse(await readFile(resolve(root, "examples", "concurrency-scheduler-phase5.yml"), "utf8")));
+  assert.equal(template.diagnosticProbe?.content, "phase5-diagnostic-probe");
+  assert.deepEqual(Buffer.from(template.diagnosticProbe?.content ?? ""), Buffer.from("phase5-diagnostic-probe"));
+});
+
 test("scheduler fixture typechecks, exposes the class API, and keeps canonical acceptance forbidden", async () => {
   execFileSync(process.execPath, [resolve(root, "node_modules", "typescript", "bin", "tsc"), "-p", resolve(root, "fixtures", "concurrency-scheduler", "tsconfig.json"), "--noEmit"], { stdio: "inherit" });
   const [source, trial] = await Promise.all([readFile(resolve(root, "fixtures", "concurrency-scheduler", "src", "scheduler.ts"), "utf8"), Promise.resolve(committedFlagship())]);

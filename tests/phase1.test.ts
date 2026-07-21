@@ -360,11 +360,12 @@ test("acceptance worker has a scrubbed environment and strict timeout", async ()
 });
 
 class ProbeAdapter implements CandidateAdapter {
+  constructor(private readonly content = "phase1-write-probe\n") {}
   async doctor() { return { adapter: "fake", ok: true }; }
   async execute(request: CandidateRequest): Promise<CandidateExecution> {
     const probe = join(request.worktree, "fixtures", "bounded-inventory", "src");
     await mkdir(probe, { recursive: true });
-    await writeFile(join(probe, "arena-write-probe.txt"), "phase1-write-probe\n");
+    await writeFile(join(probe, "arena-write-probe.txt"), this.content);
     await Promise.all([writeFile(join(request.artifactDirectory, "stdout.log"), "probe\n"), writeFile(join(request.artifactDirectory, "stderr.log"), "")]);
     return { args: ["fake"], startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:00:00.001Z", durationMs: 1, exitCode: 0, timedOut: false };
   }
@@ -459,6 +460,29 @@ test("diagnostic records a bounded successful write probe", async () => {
     const result = await runDiagnostic(trial, "one", new Map([["codex-exec", new ProbeAdapter()]]), join(temporary, "output"));
     assert.equal(result.passed, true);
     assert.equal(JSON.parse(await readFile(result.diagnosticPath, "utf8")).marker, true);
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("diagnostic probe matching is exact UTF-8 bytes without newline normalization", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "arena-diagnostic-bytes-"));
+  const repository = await makeRepository(temporary);
+  const expected = "phase5-diagnostic-probe";
+  try {
+    for (const [name, actual, passed] of [
+      ["exact", expected, true],
+      ["terminal-newline", `${expected}\n`, false],
+      ["missing-interior-byte", "phase5-dagnostic-probe", false],
+      ["quoted", `\"${expected}\"`, false],
+      ["additional-text", `${expected} complete`, false]
+    ] as const) {
+      const trial = { ...makeTrial(repository), diagnosticProbe: { path: "fixtures/bounded-inventory/src/arena-write-probe.txt", content: expected } };
+      trial.allowedPaths.push("fixtures/bounded-inventory/src");
+      const result = await runDiagnostic(trial, "one", new Map([["codex-exec", new ProbeAdapter(actual)]]), join(temporary, name));
+      const diagnostic = JSON.parse(await readFile(result.diagnosticPath, "utf8"));
+      assert.equal(result.passed, passed, name);
+      assert.equal(diagnostic.marker, passed, name);
+      if (!passed) assert.equal(diagnostic.failure_classification, "marker_mismatch", name);
+    }
   } finally { await rm(temporary, { recursive: true, force: true }); }
 });
 

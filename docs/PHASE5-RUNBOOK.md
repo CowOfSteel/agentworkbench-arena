@@ -75,4 +75,5 @@ Finally run the Pages sample scan/staging path, enable **Settings → Pages → 
 - Before tagging, run `npm run scheduler:baseline-contract`; it is the bounded verifier for the intentional behavioral baseline failure, not a generic nonzero-exit check.
 - Route doctoring does not invoke models. A passed doctor is readiness evidence, not a live-provider completion proof.
 - Diagnostics default to `min(timeout_ms, 180000)` when `diagnostic_timeout_ms` is absent. A timeout remains a failure even after the exact marker is written.
+- The canonical Phase 5 probe has no terminal newline. Arena compares its configured UTF-8 bytes exactly; this avoids treating editor-style final-newline behavior as route write-capability evidence.
 - Sol High is human-only stabilization. It remains separate from deterministic hard-gate authority.
